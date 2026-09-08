@@ -8,11 +8,48 @@ order.** Right now we are building the **model only** — the Streamlit app come
 - [x] BWTF Oahu data downloaded (report 44 export).
 - [x] `samples.csv` built — one row per sample, labeled. **3,678 rows, 32.9% unsafe,
       2001–2026, 64 sites.**
-- [ ] Pick the beaches + year range to train on.
+- [x] Pick the beaches + year range to train on. **Done — see "Selected beaches" below.**
 - [ ] Weather join → `training.csv`.
 - [ ] Flash-flood-warning baseline.
 - [ ] First classifier + evaluation vs. baseline.
 - [ ] (later) Streamlit app.
+
+## Selected beaches (training scope)
+**Decision:** train on **swimming beaches only** (excluding stream mouths, boat ramps, canals,
+and sensor points, even though several of those are the biggest bacteria hotspots). The app
+predicts *ocean swim safety*, so the training sites should be places people actually swim.
+Filtered set lives in **`samples_beaches.csv`** (same schema as `samples.csv`).
+
+- **Year range: 2018+.** Pre-2018 is sparse and gappy (~92 samples total across 2001–2016);
+  2018 onward is ~180–560 samples/yr. Each site simply starts when its record starts.
+- **9 sampling points across 7–8 popular beaches, all four regions**, chosen for sample count,
+  coverage through 2025–2026 (so the time-split has recent test data), and a spread of risk
+  levels so the single "site"-aware model has both safe and unsafe examples to learn from:
+
+  | Beach (region) | n (2018+) | unsafe % |
+  |---|---|---|
+  | Kahaluʻu Beach (East) | 183 | 87% |
+  | Magic Island / Ala Moana — Canoe Launch (South) | 167 | 40% |
+  | Magic Island / Ala Moana — Bowls (South) | 167 | 17% |
+  | Waialae Beach Park (South) | 146 | 27% |
+  | Kaʻalāwai / Cromwell's (South) | 163 | 10% |
+  | Pūpūkea tidepools / Shark's Cove (North) | 162 | 11% |
+  | Kaiaka Bay (North) | 91 | 42% |
+  | Kailua Beach Park (East) | 111 | 8% |
+  | Pōkaʻi Bay – Inside (West) | 77 | 7% |
+
+  **Totals: 1,267 samples, 29.9% unsafe.** Time-split preview: train (2018–2024) 980 samples /
+  293 unsafe; test (2025–2026) 287 samples / 86 unsafe.
+
+- **Notes / honest limits:**
+  - Magic Island Bowls + Canoe Launch are two sampling points at the *same* place (Ala Moana);
+    keep both for signal, but present them as one beach on the app map.
+  - Recent-year (2025–2026) unsafe counts are thin for the low-risk beaches (Cromwell's 2,
+    Pūpūkea 2, Waialae 3, Kailua 4, Pōkaʻi 2). Recall/AUC on the test split will lean on the
+    high-risk sites; if the recent-test positive count feels too small, widen the test window
+    to 2024–2026. That's an eval-harness call, not a beach-selection change.
+  - West side (Pōkaʻi) is the thinnest and lowest-risk; kept only for island-wide map coverage.
+    Drop it if it drags the model.
 
 ## The shared interfaces
 Everything the two of us hand back and forth is one of these three files. Agree on their
