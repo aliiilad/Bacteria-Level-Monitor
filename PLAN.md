@@ -12,7 +12,10 @@ order.** Right now we are building the **model only** — the Streamlit app come
 - [x] Evaluation harness — `evaluate.py`. **Test window widened to 2024–2026** (see
       "Evaluation harness" below).
 - [ ] Weather join → `training.csv`.
-- [ ] Flash-flood-warning baseline.
+- [~] Flash-flood-warning baseline — **logic built and tested (`baseline.py`), waiting on
+      `warnings.csv`.** Person A runs `python fetch_warnings.py` locally (cloud sandbox can't
+      reach IEM/NOAA), commits `warnings.csv`, then `python baseline.py --per-site` gives the
+      number to beat.
 - [ ] First classifier + evaluation vs. baseline.
 - [ ] (later) Streamlit app.
 
@@ -96,6 +99,26 @@ The shared scoreboard. It owns the split and the metrics so nobody re-decides th
   predictive (it essentially flags Kahaluʻu every day and nothing else). The model must beat
   this *and* the flash-flood baseline, and the win has to show up on the non-Kahaluʻu sites.
 
+## Flash-flood baseline (`baseline.py` + `fetch_warnings.py`) — logic done, data pending
+Reconstructs what the state's Brown Water Advisory would have said on each sample day.
+
+- **Definition:** `flag = 1` if an NWS **Flash Flood Warning (FF.W) for Oahu** was active at
+  any point in the **24h before the sample time** (interval overlap with `[t − 24h, t]`,
+  using `datetime_utc`; a warning issued *after* the sample never counts). **48h** is reported
+  alongside. `--events FF.W FA.W FA.Y` gives a looser "any flood warning/advisory" variant.
+- **Data:** `warnings.csv` (`phenomena, significance, event, issue_utc, expire_utc, wfo,
+  eventid`), pulled from the Iowa Environmental Mesonet NWS VTEC archive by
+  `fetch_warnings.py` (Honolulu County, UGC `HIC003`, WFO `HFO`, 2018+). Run it **locally** —
+  the cloud sandbox's network policy blocks IEM/NOAA. Commit `warnings.csv` once it exists.
+- **Output:** `baseline.csv` (`sample_id, ff_24h, ff_48h`) — joinable into `training.csv` and
+  fed to `evaluate.py` next to the model. The script also prints the comparison table with
+  the site-base-rate scorer.
+- **Known limits (say them in the app):** FF.W is island-wide in our reconstruction even
+  though NWS polygons can cover only part of Oahu; warnings are rare vs. ~30% unsafe
+  samples, so expect high precision / low recall — that gap is the pitch.
+- **Verified:** overlap logic unit-tested (inside / straddling / boundary / future-issued /
+  empty) and run end-to-end on synthetic warnings.
+
 ## Who does what (both of us on the model for now)
 We're both on the data & model track. It splits cleanly into two halves that meet at
 `training.csv`.
@@ -104,10 +127,7 @@ We're both on the data & model track. It splits cleanly into two halves that mee
 - **Beach/year selection.** From `samples.csv`, decide the 5–8 well-sampled popular beaches
   and the year range (likely **2018+** — earlier years are sparse and have gaps). Produce
   the filtered sample set the model uses.
-- **Flash-flood baseline.** For each sample (date + site), reconstruct whether a flash-flood
-  warning / brown-water advisory was active, and score its recall / precision on `unsafe`.
-  *This is the number we have to beat — build it early.* If historical NWS warnings are hard
-  to pull, approximate with a heavy-rainfall threshold and document the assumption.
+- **Flash-flood baseline.** *Logic done — `baseline.py`, see below. Needs `warnings.csv`.*
 - **Evaluation harness.** *Done — `evaluate.py`, see above.*
 
 ### Person B — weather data + feature engineering

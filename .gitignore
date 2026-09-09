@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+warnings_raw.json
+.venv/
