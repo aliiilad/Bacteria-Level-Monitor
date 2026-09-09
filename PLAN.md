@@ -11,11 +11,68 @@ order.** Right now we are building the **model only** — the Streamlit app come
 - [x] Pick the beaches + year range to train on. **Done — see "Selected beaches" below.**
 - [x] Evaluation harness — `evaluate.py`. **Test window widened to 2024–2026** (see
       "Evaluation harness" below).
-- [ ] Weather join → `training.csv`.
+- [ ] **Freeze the feature-column list** — proposal below under "Next moves", awaiting
+      Person B's yes/no.
+- [ ] Weather join → `training.csv`. **Person B — status unknown as of 2026-09-09.**
 - [x] Flash-flood-warning baseline — `baseline.py` + `warnings.csv`. **Number to beat:
       recall 0.09 / precision 0.71 (24h)** — see "Flash-flood baseline" below.
 - [ ] First classifier + evaluation vs. baseline.
+- [ ] Merge `claude/wizardly-darwin-l9bj9n` into `main` (open a PR) — `main` has none of the
+      harness / baseline work.
 - [ ] (later) Streamlit app.
+
+## Next moves (written 2026-09-09, end of day)
+**Where we are:** both Person-A tasks are done (harness + baseline). The number to beat is
+**recall 0.09 / precision 0.71** (see "Flash-flood baseline"). Everything now waits on
+**`training.csv`**, which is Person B's weather join. Person A is free.
+
+### Three decisions needed first (a minute each)
+1. **Person B — has the NOAA rainfall join started? Yes / no.** If no, Person A takes it
+   (it's the critical path; see "If Person A takes the rainfall join" below).
+2. **Freeze the feature-column list.** Proposed v1 — all computable from one NOAA daily
+   rainfall station plus `samples.csv`:
+
+   | column | type | meaning |
+   |---|---|---|
+   | `site_id` | categorical | which beach (from `samples.csv`) |
+   | `rain_24h`, `rain_48h`, `rain_72h`, `rain_7d` | mm | cumulative rainfall in the window ending the local day *before* the sample date — strictly pre-sample, no leakage |
+   | `days_since_rain_gt_10mm` | int | dry-spell length; captures "first flush" after a dry stretch |
+   | `month` | int 1–12 | season / trade-wind vs. Kona storm regime |
+   | `ff_24h` | 0/1 | the flash-flood-warning flag from `baseline.csv` — the state's signal as a feature |
+   | `unsafe` | 0/1 | **label** |
+
+   Keep `sample_id`, `date`, `datetime_utc` as pass-through columns for joining and
+   splitting. **Deferred to v2:** temp, tide, wave height, wind, nearest-station-per-beach.
+   Yes / no / edits → then this table becomes the contract and gets moved to "The shared
+   interfaces".
+3. **Merge the branch into `main`?** Recommend opening a PR so the history is reviewable.
+
+### Person A — next unblocked moves (pick in order)
+- **`train.py` skeleton, now, against a dummy `training.csv`.** Reads `training.csv`, uses
+  `evaluate.time_split`, fits `HistGradientBoostingClassifier` + logistic regression on the
+  frozen columns, saves `model.pkl`, prints the harness table with the flash-flood baseline
+  and site-base-rate rows alongside, plus `recall_at_precision` at 0.71. When the real
+  `training.csv` lands, one command produces the checkpoint-3 comparison table.
+- **If Person A takes the rainfall join** (decision 1 = "no"): pull NOAA GHCN-Daily for a
+  Honolulu station (start: Honolulu Intl Airport `USW00022521`; daily `PRCP` in tenths of
+  mm). Keyless CSV download at
+  `https://www.ncei.noaa.gov/data/global-historical-climatology-network-daily/access/USW00022521.csv`
+  (or `https://www.ncei.noaa.gov/pub/data/ghcn/daily/by_station/USW00022521.csv.gz`) —
+  unverified from the sandbox, run locally like `fetch_warnings.py`. Then a `features.py`
+  that emits `training.csv` with the v1 columns. One station is coarse for an island with
+  Oahu's rainfall gradient; nearest-station-per-beach is the v2 upgrade.
+- **Side actions (non-technical, any time):** confirm the exact 2026 CAC deadline and that
+  our district is hosting (congressionalappchallenge.us); email the Surfrider Oahu BWTF
+  coordinator (contact on the report page).
+
+### Person B — what to know before building the join
+- Use `evaluate.time_split` for any split; never touch 2024+ while designing features.
+- **Gotcha:** `datetime_utc` mixes `...:00Z` and `...:00.000Z` — parse with
+  `pd.to_datetime(..., utc=True, format="ISO8601")` or it errors. pandas 3 also returns
+  tz-aware timestamps as object arrays; `baseline.py`'s `to_utc` / `_ns` helpers show the fix.
+- Rainfall windows must end *before* the sample, using `datetime_utc` (samples are ~8–10am
+  HST, so "the day before" in local time is the safe cut).
+- The `ff_24h` column comes from `baseline.csv` (`sample_id` join key) — don't recompute it.
 
 ## Selected beaches (training scope)
 **Decision:** train on **swimming beaches only** (excluding stream mouths, boat ramps, canals,
@@ -145,7 +202,7 @@ Reconstructs what the state's Brown Water Advisory would have said on each sampl
 We're both on the data & model track. It splits cleanly into two halves that meet at
 `training.csv`.
 
-### Person A — labels, baseline, evaluation
+### Person A — labels, baseline, evaluation — *all done; see "Next moves"*
 - **Beach/year selection.** From `samples.csv`, decide the 5–8 well-sampled popular beaches
   and the year range (likely **2018+** — earlier years are sparse and have gaps). Produce
   the filtered sample set the model uses.
