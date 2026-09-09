@@ -56,6 +56,10 @@ Filtered set lives in **`samples_beaches.csv`** (same schema as `samples.csv`).
   - West side (Pōkaʻi) is the thinnest and lowest-risk; kept only for island-wide map coverage.
     Drop it if it drags the model.
 
+- **Reference table:** `beaches.csv` — one row per selected beach (site_id, beach_name,
+  region, full_site_name, lat/lon, n_samples, n_unsafe, unsafe_pct, first_year, last_year).
+  A compact lookup for the app map/markers and a human-readable summary of the pick.
+
 ## The shared interfaces
 Everything the two of us hand back and forth is one of these three files. Agree on their
 columns before diverging, and don't change a schema without telling the other person.
