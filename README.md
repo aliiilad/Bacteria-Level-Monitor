@@ -56,6 +56,8 @@ levels. Full rationale and the per-beach table are in [`PLAN.md`](./PLAN.md).
 | `samples.csv` | One row per BWTF sample, labeled. The full raw archive. |
 | `samples_beaches.csv` | `samples.csv` filtered to the 9 selected beaches (2018+). Training scope. |
 | `beaches.csv` | One row per selected beach: location, sample counts, unsafe %. Map/reference table. |
+| `evaluate.py` | Evaluation harness: the time-based split (train 2018–2023, test 2024–2026) and the metrics table. `python evaluate.py --per-site` runs the no-weather reference scorers. |
+| `requirements.txt` | Python deps (`pip install -r requirements.txt`). |
 
 ## Approach
 

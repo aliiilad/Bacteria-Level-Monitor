@@ -9,6 +9,8 @@ order.** Right now we are building the **model only** — the Streamlit app come
 - [x] `samples.csv` built — one row per sample, labeled. **3,678 rows, 32.9% unsafe,
       2001–2026, 64 sites.**
 - [x] Pick the beaches + year range to train on. **Done — see "Selected beaches" below.**
+- [x] Evaluation harness — `evaluate.py`. **Test window widened to 2024–2026** (see
+      "Evaluation harness" below).
 - [ ] Weather join → `training.csv`.
 - [ ] Flash-flood-warning baseline.
 - [ ] First classifier + evaluation vs. baseline.
@@ -38,8 +40,8 @@ Filtered set lives in **`samples_beaches.csv`** (same schema as `samples.csv`).
   | Kailua Beach Park (East) | 111 | 8% |
   | Pōkaʻi Bay – Inside (West) | 77 | 7% |
 
-  **Totals: 1,267 samples, 29.9% unsafe.** Time-split preview: train (2018–2024) 980 samples /
-  293 unsafe; test (2025–2026) 287 samples / 86 unsafe.
+  **Totals: 1,267 samples, 29.9% unsafe.** Time split (decided, see "Evaluation harness"):
+  train (2018–2023) 785 samples / 242 unsafe; test (2024–2026) 482 samples / 137 unsafe.
 
 - **Count: sticking with these 9 for now; may adjust the number later.** Candidate additional
   swim beaches if we want more (all excluded for now): Wailupe Beach Park (S, 127/18%) and
@@ -49,10 +51,10 @@ Filtered set lives in **`samples_beaches.csv`** (same schema as `samples.csv`).
 - **Notes / honest limits:**
   - Magic Island Bowls + Canoe Launch are two sampling points at the *same* place (Ala Moana);
     keep both for signal, but present them as one beach on the app map.
-  - Recent-year (2025–2026) unsafe counts are thin for the low-risk beaches (Cromwell's 2,
-    Pūpūkea 2, Waialae 3, Kailua 4, Pōkaʻi 2). Recall/AUC on the test split will lean on the
-    high-risk sites; if the recent-test positive count feels too small, widen the test window
-    to 2024–2026. That's an eval-harness call, not a beach-selection change.
+  - Recent-year unsafe counts are thin for the low-risk beaches — with a 2024–2026 test
+    window it's still only Pūpūkea 3, Pōkaʻi 3, Cromwell's 4, Kailua 6, Waialae 8. Recall/AUC
+    on the test split lean on Kahaluʻu (58 of the 137 test positives), Canoe Launch (22) and
+    Kaiaka (21). Always read the per-site table (`--per-site`) alongside the headline number.
   - West side (Pōkaʻi) is the thinnest and lowest-risk; kept only for island-wide map coverage.
     Drop it if it drags the model.
 
@@ -74,6 +76,26 @@ columns before diverging, and don't change a schema without telling the other pe
 3. **`training.csv`** — `samples.csv` + the weather feature columns. One row per sample =
    features + `unsafe`. This is what the model trains on.
 
+## Evaluation harness (`evaluate.py`) — done
+The shared scoreboard. It owns the split and the metrics so nobody re-decides them.
+
+- **Split: train = 2018–2023, test = 2024–2026** (`TEST_START_YEAR = 2024`). Widened from
+  2025+ because 2025–2026 alone left the low-risk beaches with 2–4 positives each. Test set
+  is now 482 rows / 137 unsafe. Test years are off-limits for feature design and model
+  selection.
+- **Metrics per scorer:** recall, precision, ROC-AUC, specificity, F1, % of days flagged,
+  confusion matrix (tp/fp/fn/tn), plus bootstrap 95% CIs on recall and AUC. `compare()`
+  puts model and baseline(s) in one table; `per_site()` breaks recall/precision out by beach.
+- **Scorer contract (for Person B and the baseline):** given the test rows, return one score
+  per row — a model returns `predict_proba(X)[:, 1]`, a baseline returns 0/1 flags. Pass to
+  `evaluate_scores(test.unsafe, scores, name=...)`. Default flag threshold 0.5.
+- **Built-in reference scorers** (fit on train only): `site base rate` (P = that site's
+  training unsafe rate — *no weather*), `always unsafe`, `random`.
+- **Bar to clear, before any weather:** `python evaluate.py` gives site-base-rate
+  **AUC 0.82 [0.78, 0.86], recall 0.42, precision 0.89**. Site identity alone is that
+  predictive (it essentially flags Kahaluʻu every day and nothing else). The model must beat
+  this *and* the flash-flood baseline, and the win has to show up on the non-Kahaluʻu sites.
+
 ## Who does what (both of us on the model for now)
 We're both on the data & model track. It splits cleanly into two halves that meet at
 `training.csv`.
@@ -86,9 +108,7 @@ We're both on the data & model track. It splits cleanly into two halves that mee
   warning / brown-water advisory was active, and score its recall / precision on `unsafe`.
   *This is the number we have to beat — build it early.* If historical NWS warnings are hard
   to pull, approximate with a heavy-rainfall threshold and document the assumption.
-- **Evaluation harness.** A reusable script: takes a fitted model + test set, reports
-  recall, precision, ROC-AUC, and a confusion matrix, side-by-side with the baseline, on a
-  **time-based split** (older years train, recent years test).
+- **Evaluation harness.** *Done — `evaluate.py`, see above.*
 
 ### Person B — weather data + feature engineering
 - **NOAA rainfall source.** Pick a station (or two) near the beaches; work out how to pull
@@ -114,7 +134,8 @@ We're both on the data & model track. It splits cleanly into two halves that mee
 ## Ground rules
 - **No leakage.** Every weather feature is strictly pre-sample. Test years are never touched
   during feature design or model selection.
-- **Time-based split, always.** No random shuffling across years.
+- **Time-based split, always.** No random shuffling across years. Use `evaluate.time_split`;
+  don't roll your own.
 - **Beat the baseline on recall / AUC**, and be honest about limits (biweekly sampling
   under-represents storm days; small dataset).
 - **Disclose AI-tool use** (CAC rule); the code must be genuinely ours.
