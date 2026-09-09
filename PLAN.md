@@ -41,6 +41,11 @@ Filtered set lives in **`samples_beaches.csv`** (same schema as `samples.csv`).
   **Totals: 1,267 samples, 29.9% unsafe.** Time-split preview: train (2018–2024) 980 samples /
   293 unsafe; test (2025–2026) 287 samples / 86 unsafe.
 
+- **Count: sticking with these 9 for now; may adjust the number later.** Candidate additional
+  swim beaches if we want more (all excluded for now): Wailupe Beach Park (S, 127/18%) and
+  Pililāʻau (W, 46/13%) are the clean adds; South Kāneʻohe Bay + Kaimalino (Windward, ~25%)
+  and Chocolates (N surf break, 66%) carry more signal but stretch the "swim beach" label.
+
 - **Notes / honest limits:**
   - Magic Island Bowls + Canoe Launch are two sampling points at the *same* place (Ala Moana);
     keep both for signal, but present them as one beach on the app map.
