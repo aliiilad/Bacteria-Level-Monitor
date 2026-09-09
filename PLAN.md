@@ -12,10 +12,8 @@ order.** Right now we are building the **model only** — the Streamlit app come
 - [x] Evaluation harness — `evaluate.py`. **Test window widened to 2024–2026** (see
       "Evaluation harness" below).
 - [ ] Weather join → `training.csv`.
-- [~] Flash-flood-warning baseline — **logic built and tested (`baseline.py`), waiting on
-      `warnings.csv`.** Person A runs `python fetch_warnings.py` locally (cloud sandbox can't
-      reach IEM/NOAA), commits `warnings.csv`, then `python baseline.py --per-site` gives the
-      number to beat.
+- [x] Flash-flood-warning baseline — `baseline.py` + `warnings.csv`. **Number to beat:
+      recall 0.09 / precision 0.71 (24h)** — see "Flash-flood baseline" below.
 - [ ] First classifier + evaluation vs. baseline.
 - [ ] (later) Streamlit app.
 
@@ -99,8 +97,32 @@ The shared scoreboard. It owns the split and the metrics so nobody re-decides th
   predictive (it essentially flags Kahaluʻu every day and nothing else). The model must beat
   this *and* the flash-flood baseline, and the win has to show up on the non-Kahaluʻu sites.
 
-## Flash-flood baseline (`baseline.py` + `fetch_warnings.py`) — logic done, data pending
+## Flash-flood baseline (`baseline.py` + `fetch_warnings.py`) — done
 Reconstructs what the state's Brown Water Advisory would have said on each sample day.
+
+**Result (test set 2024–2026, 482 samples / 137 unsafe):**
+
+| scorer | recall | precision | ROC-AUC | days flagged | tp / fp / fn |
+|---|--:|--:|--:|--:|---|
+| **FF.W baseline, 24h** (the state's method) | **0.09** [0.04, 0.14] | **0.71** | 0.54 | 3.5% | 12 / 5 / 125 |
+| FF.W baseline, 48h | 0.15 [0.10, 0.22] | 0.70 | 0.56 | 6.2% | 21 / 9 / 116 |
+| FF.W + FA.Y (flood advisories too), 48h | 0.21 | 0.55 | 0.57 | 11% | 29 / 24 / 108 |
+| site base rate (no weather) | 0.42 | 0.89 | 0.82 | 13.5% | 58 / 7 / 79 |
+
+- **Reading it:** the state's trigger is *right* when it fires — across all years, 71% of
+  samples taken within 24h of a flash-flood warning were unsafe vs. 29% otherwise — but it
+  fires so rarely (95 warnings in 8.5 years, ~3 h long each) that it **misses 91% of unsafe
+  days.** That gap is the whole pitch. Widening to 48h or adding flood advisories buys a
+  little recall at a precision cost; none of it gets past 0.21.
+- **What "beat the baseline" means concretely:** the model must reach **recall well above
+  0.15 while holding precision ≥ ~0.70** (use `evaluate.recall_at_precision` — it sweeps the
+  model's threshold to the baseline's precision so a probability and a 0/1 flag compare
+  fairly), **and** AUC > 0.82 (the site-base-rate bar), with the gain visible on the
+  non-Kahaluʻu beaches. Quote the 24h number as the official comparison; show 48h as the
+  generous reading.
+- **Warnings data:** `warnings.csv` — 437 events for Honolulu County 2018-01 → 2026-09
+  (95 Flash Flood Warnings FF.W, 342 Flood Advisories FA.Y; IEM returned no FA.W / FF.A).
+  Per-year FF.W ranges 2–28. Durations median ~3 h. One zero-length FA.Y (harmless).
 
 - **Definition:** `flag = 1` if an NWS **Flash Flood Warning (FF.W) for Oahu** was active at
   any point in the **24h before the sample time** (interval overlap with `[t − 24h, t]`,

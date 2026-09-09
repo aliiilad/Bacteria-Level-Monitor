@@ -12,11 +12,14 @@ Scores are thresholded (default 0.5) to get the safe/unsafe flag for recall/prec
 ROC-AUC uses the raw scores.
 
 Usage from code:
-    from evaluate import time_split, evaluate_scores, compare
+    from evaluate import time_split, evaluate_scores, compare, recall_at_precision
     train, test = time_split(df)                       # df must have `date` + `unsafe`
     r_model = evaluate_scores(test.unsafe, p_model, name="HistGB")
     r_base  = evaluate_scores(test.unsafe, ff_flag,  name="Flash-flood baseline")
     print(compare([r_model, r_base]))
+    # binary baseline vs probabilistic model, apples to apples: model recall at the
+    # baseline's precision
+    print(recall_at_precision(test.unsafe, p_model, target_precision=r_base["precision"]))
 
 Usage from the shell (demo on samples_beaches.csv with dummy scorers):
     python evaluate.py
@@ -117,6 +120,24 @@ def evaluate_model(model, X_test, y_test, name: str = "model", **kw) -> dict:
     """Convenience: fitted sklearn classifier with predict_proba -> evaluate_scores."""
     p = model.predict_proba(X_test)[:, 1]
     return evaluate_scores(y_test, p, name=name, **kw)
+
+
+def recall_at_precision(y_true, y_score, target_precision: float) -> dict:
+    """Fair model-vs-binary-baseline comparison: sweep the model's threshold and report the
+    best recall it reaches while keeping precision >= target (e.g. the baseline's 0.71).
+    Returns {'recall', 'precision', 'threshold', 'flagged_pct'}; recall 0 if unreachable."""
+    y_true = np.asarray(y_true, dtype=int)
+    y_score = np.asarray(y_score, dtype=float)
+    best = {"recall": 0.0, "precision": None, "threshold": None, "flagged_pct": 0.0}
+    for thr in np.unique(y_score):
+        pred = y_score >= thr
+        tp = int((pred & (y_true == 1)).sum())
+        prec = _safe_div(tp, int(pred.sum()))
+        rec = _safe_div(tp, int(y_true.sum()))
+        if prec is not None and prec >= target_precision and rec > best["recall"]:
+            best = {"recall": rec, "precision": prec, "threshold": float(thr),
+                    "flagged_pct": float(pred.mean())}
+    return best
 
 
 def per_site(test: pd.DataFrame, y_score, name: str = "scorer",
