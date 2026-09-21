@@ -49,13 +49,18 @@ levels. Full rationale and the per-beach table are in [`PLAN.md`](./PLAN.md).
 
 ## Repository
 
-| File | What it is |
+| Path | What it is |
 |---|---|
 | [`CLAUDE.md`](./CLAUDE.md) | Project context (goal, data, decisions already made). |
 | [`PLAN.md`](./PLAN.md) | Live working plan — tasks, ownership, shared file schemas. |
-| `samples.csv` | One row per BWTF sample, labeled. The full raw archive. |
-| `samples_beaches.csv` | `samples.csv` filtered to the 9 selected beaches (2018+). Training scope. |
-| `beaches.csv` | One row per selected beach: location, sample counts, unsafe %. Map/reference table. |
+| `data/raw/surfrider_raw.csv` | Raw Surfrider BWTF export (report 44) — the unprocessed source. |
+| `data/raw/weather_openmeteo_raw.csv` | Raw Open-Meteo daily weather pull (per-beach locations + daily series). |
+| `data/processed/samples.csv` | One row per BWTF sample, cleaned and labeled. The full archive. |
+| `data/processed/samples_beaches.csv` | `samples.csv` filtered to the 9 selected beaches (2018+). Training scope. |
+| `data/processed/samples_beaches_weather.csv` | `samples_beaches.csv` joined with antecedent-weather features. |
+| `data/processed/beaches.csv` | One row per selected beach: location, sample counts, unsafe %. Map/reference table. |
+| `notebooks/` | Jupyter / Colab notebooks (EDA, cleaning, modelling). |
+| `scripts/` | Reusable Python scripts — chiefly the raw → processed data pipeline. |
 
 ## Approach
 
