@@ -57,8 +57,8 @@ levels. Full rationale and the per-beach table are in [`PLAN.md`](./PLAN.md).
 | `data/raw/weather_openmeteo_raw.csv` | Raw Open-Meteo daily weather pull (per-beach locations + daily series). |
 | `data/processed/samples.csv` | One row per BWTF sample, cleaned and labeled. The full archive. |
 | `data/processed/samples_beaches.csv` | `samples.csv` filtered to the 9 selected beaches (2018+). Training scope. |
-| `app/` | Streamlit app **design sample** (`streamlit run app/app.py`). Uses a placeholder risk formula until `model.pkl` exists. |
-| `.streamlit/config.toml` | Dark theme that matches `app/style.css`. |
+| `ui/` | Streamlit app **design sample** (`streamlit run ui/app.py`). Uses a placeholder risk formula until `model.pkl` exists. |
+| `.streamlit/config.toml` | Dark theme that matches `ui/style.css`. |
 | `data/processed/samples_beaches_weather.csv` | `samples_beaches.csv` joined with antecedent-weather features. |
 | `data/processed/beaches.csv` | One row per selected beach: location, sample counts, unsafe %. Map/reference table. |
 | `notebooks/` | Jupyter / Colab notebooks (EDA, cleaning, modelling). |

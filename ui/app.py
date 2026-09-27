@@ -6,7 +6,7 @@ Layout mimics an editorial landing page: full-bleed hero, then numbered sections
 The risk number comes from `placeholder_risk()`, a hand-made stand-in so the UI can be built
 before the real model exists. Swap it for `model.pkl` once training is done.
 
-Run:  streamlit run app/app.py
+Run:  streamlit run ui/app.py
 """
 from math import exp, log
 from pathlib import Path
