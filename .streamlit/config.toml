@@ -1,0 +1,8 @@
+# Dark theme matching app/style.css
+[theme]
+base = "dark"
+primaryColor = "#fbd784"
+backgroundColor = "#0b1d26"
+secondaryBackgroundColor = "#10283a"
+textColor = "#ffffff"
+font = "sans serif"
