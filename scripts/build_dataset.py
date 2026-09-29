@@ -129,7 +129,10 @@ def build_beaches_table(samples_beaches: pd.DataFrame, existing: Path | None) ->
                   n_samples=("unsafe", "size"), n_unsafe=("unsafe", "sum"),
                   first_year=("year", "min"), last_year=("year", "max"))
              .reset_index())
-    agg["unsafe_pct"] = (agg["n_unsafe"] / agg["n_samples"] * 100).round(1)
+    agg.insert(agg.columns.get_loc("n_unsafe") + 1, "unsafe_pct",
+               (agg["n_unsafe"] / agg["n_samples"] * 100).round(1))
+    # keep the BEACH_SITE_IDS order (grouped by shore): the app's beach picker follows it
+    agg = agg.sort_values("site_id", key=lambda s: s.map(BEACH_SITE_IDS.index), ignore_index=True)
     # The descriptive labels (beach_name, region, full_site_name) are editorial —
     # reuse them from the committed beaches.csv if it is available.
     if existing and existing.exists():
