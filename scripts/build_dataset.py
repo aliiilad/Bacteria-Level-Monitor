@@ -47,6 +47,9 @@ def clean_samples(raw_path: Path) -> pd.DataFrame:
     }
     s = df[list(keep)].rename(columns=keep)
     s = s[s["enterococcus"].notna()].copy()          # drop rows with no bacteria reading
+    # same site + date + count = one sample entered twice (notebook Part 3a); different counts
+    # on the same day are real replicate measurements and are kept
+    s = s[~s.duplicated(["site_id", "date", "enterococcus"])]
     s["enterococcus"] = pd.to_numeric(s["enterococcus"], errors="coerce").astype(int)
     s["date"] = pd.to_datetime(s["date"], format="mixed").dt.strftime("%Y-%m-%d")
     s["unsafe"] = (s["enterococcus"] > UNSAFE_THRESHOLD).astype(int)
