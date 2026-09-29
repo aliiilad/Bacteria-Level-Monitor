@@ -4,9 +4,6 @@ Predicting, for a given Oahu beach and day, the **probability that the ocean is 
 swim in** — i.e. that enterococcus fecal-indicator bacteria exceed the Hawaii Department of
 Health threshold (**> 130 MPN/100 mL**) — from weather and environmental conditions.
 
-An entry for the **[Congressional App Challenge](https://www.congressionalappchallenge.us/)**.
-The goal is a polished, usable app that beats the state's naive baseline (a Brown Water
-Advisory issued only when a flash-flood warning is active).
 
 > **Status: in progress.** We're building the model first; the app comes later. See
 > [`PLAN.md`](./PLAN.md) for the live task list.
