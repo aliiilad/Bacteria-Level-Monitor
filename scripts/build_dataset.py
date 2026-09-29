@@ -51,8 +51,8 @@ WEATHER_COLS = ["rain_same_day", "rain_prev_7days", "days_since_rain", "temp_mea
 # The app model only uses inputs the app can get from the Open-Meteo forecast before the
 # day starts: no tide (not in the forecast) and no same-day rain (not known yet).
 APP_FEATURES = ["rain_prev_7days", "days_since_rain", "temp_mean", "wind_max"]
-TEST_FROM_YEAR = 2025
-FLASH_FLOOD_MM = 25.0  # rain that day that stands in for a flash-flood warning  # time-based split: train 2018-2024, test 2025-2026
+TEST_FROM_YEAR = 2025  # time-based split: train 2018-2024, test 2025-2026
+FLASH_FLOOD_MM = 25.0  # rain that day that stands in for a flash-flood warning  
 
 
 # --------------------------------------------------------------------------- #
