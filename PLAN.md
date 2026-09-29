@@ -2,8 +2,9 @@
 
 Working plan for the Congressional App Challenge entry. Project context lives in
 [`CLAUDE.md`](./CLAUDE.md); this file tracks **what we're doing, who's doing it, and in what
-order.** The model is done and the app runs locally with live weather. What's left is
-deploying it, filling the gaps below, and making a 3-minute video.
+order.** The model is done, and the app runs locally with live weather, its test results, and
+a limits section. What's left is deploying it, a few small fixes, rewriting the README, an
+"About the team" section, and a 3-minute video.
 
 **Person A** owns the model and data. **Person B** owns the app. The same plan is also on a
 shared tick list: <https://claude.ai/artifact/JPhJCuFypuYq3ujDb6uiAe> (private; the owner
@@ -17,43 +18,53 @@ the end of each week.
 - **Video:** 3 minutes max. It must cover purpose, intended audience, tools and languages, and
   what the app does.
 - **AI rule:** AI tools are allowed only if disclosed, and the technical work must be
-  significantly our own. Most commits so far came from Claude sessions, so before submitting,
-  each of us should have written or reworked real parts of the code and be able to explain
-  every line on camera.
+  significantly our own. Most commits so far came from Claude sessions (28 of 46 on Sep 29).
+  From Sep 29 on we write and commit our own changes, and each of us should be able to
+  explain every line on camera.
 
 ## Current status (Sep 29)
-- [x] BWTF Oahu data downloaded (report 44 export), cleaned and labeled. The pipeline now
-      also drops 11 double-entered samples.
+- [x] BWTF Oahu data downloaded (report 44 export), cleaned and labeled. The pipeline also
+      drops 11 double-entered samples.
 - [x] 9 swim beaches picked, 2018 onward (see "Selected beaches" below).
 - [x] Weather join: Open-Meteo daily weather per beach, antecedent-rain features.
 - [x] Class notebook (`notebooks/U02_L050_LRProject.ipynb`): linear regression on
-      log(enterococcus) by our own gradient descent. Runs top to bottom.
+      log(enterococcus) by our own gradient descent. Runs top to bottom, and Part 4.4 saves
+      `beaches.csv`.
 - [x] App model: same method with only inputs the app can get live, tested on 2025–26,
-      exported to `models/model.json` by `scripts/build_dataset.py` (Part 8).
+      exported to `models/model.json` by `scripts/build_dataset.py` (Part 8), together with
+      the flash-flood and beach-only comparison.
+- [x] Processed data refreshed: `tide` column and duplicate cleanup are in. On Sep 29,
+      re-running `python scripts/build_dataset.py` reproduced every committed CSV and
+      `model.json` exactly.
 - [x] Streamlit app "Kai Check" (`ui/app.py`): live Open-Meteo weather, risk gauge, "why"
-      bars, what-if sliders, map, and a fallback when the weather fetch fails.
+      bars, what-if sliders, map, "How well it works" chart (section 04), "Know the limits"
+      cards, and a fallback when the weather fetch fails. Runs with no errors.
 - [ ] Deployed to a public URL.
-- [ ] Gaps: stale processed data, limitations and "how it works" content, README.
+- [ ] Small fixes: Magic Island pin, a Windows date bug, a deprecated Streamlit argument, a
+      misplaced comment (week 1).
+- [ ] README and CLAUDE.md still describe the old plan.
+- [ ] "About the team" section.
 - [ ] Video and submission.
 
 ## Where the model stands
-The app model trains on 2018–2024 and is tested on 2025–26 samples it never saw (293 samples,
-89 unsafe). "Unsafe" = enterococcus > 130 MPN/100 mL.
+The app model trains on 2018–2024 (976 samples) and is tested on 2025–26 samples it never saw
+(293 samples, 89 unsafe). "Unsafe" = enterococcus > 130 MPN/100 mL.
 
 | Approach | Unsafe caught (recall) | Flagged that were unsafe (precision) | AUC |
 |---|--:|--:|--:|
-| Flash-flood stand-in (≥ 25 mm rain that day)\* | 4% | 67% (only 6 flagged) | – |
+| Flash-flood stand-in (≥ 25 mm rain that day) | 4% (4 of 89) | 57% (only 7 flagged) | – |
+| Beach only, no weather, flags at 50% | 42% | 88% | 0.83 |
 | App model, flags at 50% | 55% | 83% | 0.87 |
 | **App model, flags at 30%** | **80%** | 63% | **0.87** |
 
-App-model numbers are from `models/model.json`. \*The stand-in comes from the Sep 27 check on
-the same split, before the duplicate cleanup; it isn't in the script yet (a week 1 task).
+All four rows come from Part 8 of `scripts/build_dataset.py` and are saved in
+`models/model.json` under `test.comparison`. The app's section 04 draws its chart from there.
 
 - **Video headline:** the model catches 80% of unsafe water; a flash-flood rule catches 4%.
 - The flash-flood stand-in uses Open-Meteo rainfall, not real NWS warnings. Call it an
   approximation.
-- The beach does most of the work: in the Sep 27 check, beach alone scored 0.82 AUC and
-  weather added about 0.05. Say so.
+- The beach does most of the work: beach alone scores 0.83 AUC and weather adds about 0.05.
+  The app says so in its limits section.
 
 ## How the app model works
 Built by `scripts/build_dataset.py` (Part 8), saved in `models/model.json`, and scored by
@@ -88,21 +99,31 @@ Weeks run Monday to Sunday, Hawaiʻi time. Items already done on `main` are tick
       `scripts/build_dataset.py`).
 - [x] Turn the prediction into a risk % (`ui/risk_model.py`).
 - [x] Save `models/model.json` and print the 2025–26 test results (Part 8).
-- [ ] Re-run `python scripts/build_dataset.py` and commit `data/processed/`. Those files are
-      still from Sep 21: no `tide` column and no duplicate cleanup. The app reads
-      `beaches.csv` for its "X of Y samples" line, so the numbers on screen are stale.
-- [ ] Add the flash-flood stand-in to Part 8's printout, so the 80% versus 4% claim can be
-      reproduced from the repo.
+- [x] Re-run `python scripts/build_dataset.py` and commit `data/processed/`.
+- [x] Add the flash-flood stand-in to Part 8's printout. Its precision moved from 67% to 57%
+      after the duplicate cleanup; recall is still 4%.
+- [ ] Fix the comment on line 55 of `scripts/build_dataset.py`. The "time-based split"
+      comment got glued onto the `FLASH_FLOOD_MM` line; it belongs on `TEST_FROM_YEAR`.
 
 **Person B — app & product**
 - [x] Streamlit app with map and gauge (`ui/app.py`), with `ui/requirements.txt`.
-- [ ] Deploy to Streamlit Community Cloud (entry point `ui/app.py`) and share the public URL.
-- [ ] Show the two Magic Island sampling points as one pin. They currently draw as two
+- [ ] Pin exact versions in `ui/requirements.txt` (the ones that work on your laptop,
+      from `pip freeze`), so the deployed app installs the same Streamlit you tested.
+- [ ] Replace `use_container_width=True` with `width="stretch"` in `ui/app.py` (line 313).
+      Streamlit prints a warning that the old argument is being removed.
+- [ ] Fix the date on the gauge card (`ui/app.py` line 202): `strftime("%a %b %-d")` crashes
+      on Windows. Build the day number with `.day` instead.
+- [ ] Deploy to Streamlit Community Cloud: share.streamlit.io → Create app → this repo,
+      branch `main`, main file `ui/app.py`. Then check that live weather loads there, and
+      share the public URL.
+- [ ] Show the two Magic Island sampling points as one pin. They still draw as two
       overlapping dots.
 
 **Together**
-- [ ] Update `README.md` and `CLAUDE.md` to describe what we actually built. The README still
-      says the app comes later and describes a gradient-boosting classifier. Judges will read
+- [ ] Rewrite `README.md` and update `CLAUDE.md` to describe what we actually built. The
+      README still says the app comes later, describes a gradient-boosting classifier, and
+      has the old counts (1,267 samples, 29.9%). The Sep 28 edit removed the Congressional
+      App Challenge line, so add a sentence back saying what this is for. Judges will read
       the repo.
 
 ### Week 2 · Oct 5 – 11 · Live weather in, real risk out
@@ -111,7 +132,7 @@ Weeks run Monday to Sunday, Hawaiʻi time. Items already done on `main` are tick
 - [x] Build the four inputs the same way training did.
 - [x] Clamp inputs to the training range and cap the displayed risk at 99%.
 - [ ] Compare live forecast weather with the historical weather the model trained on, for a
-      few recent days at 2–3 beaches. If rain totals differ a lot, note it in the limitations.
+      few recent days at 2–3 beaches. If rain totals differ a lot, add it to the app's limits.
 
 **Person B — app & product**
 - [x] Gauge with lower risk / caution / likely unsafe labels (30% / 60%).
@@ -119,14 +140,17 @@ Weeks run Monday to Sunday, Hawaiʻi time. Items already done on `main` are tick
 - [x] Each beach's track record ("X of Y samples over the limit"), which explains why
       Kahaluʻu (87%) almost always shows red.
 - [x] "Try different weather" sliders, so we can demo a high-risk beach on a sunny day.
-- [ ] A real limitations section. The footer's "Limitations" and "About the team" links land
-      on the footer with nothing behind them. Cover biweekly testing, the small dataset, and
-      that this is not an official advisory.
+- [x] Limitations section: four "Know the limits" cards (beach does most of the work, few
+      storm-day samples, stand-in baseline, not an official advisory). The footer's
+      "Limitations" link now lands on it.
+- [ ] "About the team" section. The nav's "About" and the footer's "About the team" links
+      still land on the footer with nothing behind them. Add our names, school, and why we
+      built it; the same text helps the CAC "inspiration" answer.
 
 ### Week 3 · Oct 12 – 18 · Polish the app and start the story
 **Person A — model & data**
-- [ ] "How it works" section with the 80% versus 4% chart. The "how the model works" link
-      currently lands on the footer.
+- [x] "How it works" chart, 80% versus 4%: done as section 04, "How well it works", with a
+      "Show as table" option.
 - [ ] Email the Surfrider Oʻahu BWTF coordinator. It helps the CAC "inspiration" answer.
 
 **Person B — app & product**
@@ -149,7 +173,8 @@ Weeks run Monday to Sunday, Hawaiʻi time. Items already done on `main` are tick
 - [ ] Confirm our congressional district is taking part in 2026 (district map on
       congressionalappchallenge.us).
 - [ ] Register both teammates on the CAC student portal.
-- [ ] Keep a running log of what AI tools did, for the required disclosure.
+- [ ] Keep a running log of what AI tools did, for the required disclosure. Commits by
+      "Claude" in `git log` are part of that record.
 - [ ] Make sure we can both explain every line of code on camera.
 
 ## Video outline (3:00 max)
@@ -157,7 +182,7 @@ Weeks run Monday to Sunday, Hawaiʻi time. Items already done on `main` are tick
 |---|---|---|
 | 0:00 – 0:20 | Hook | Bacteria tests happen every two weeks. Rain happens any day. Most days, nobody knows if the water is safe. |
 | 0:20 – 1:50 | Live demo | Pick a beach, read the gauge and the "why" bars, then use "Try different weather" to show a beach turning red. |
-| 1:50 – 2:30 | How it works | Surfrider samples, Open-Meteo weather, our own gradient descent. Show the chart: 80% caught versus 4%. |
+| 1:50 – 2:30 | How it works | Surfrider samples, Open-Meteo weather, our own gradient descent. Show section 04: 80% caught versus 4%. |
 | 2:30 – 3:00 | Limits and tools | Biweekly sampling, a small dataset, not an official advisory. Name Python, pandas, Streamlit, and the AI tools we used. |
 
 ## Selected beaches (training scope)
@@ -171,22 +196,21 @@ Filtered set lives in **`samples_beaches.csv`** (same schema as `samples.csv`).
 - **9 sampling points across 7–8 popular beaches, all four regions**, chosen for sample count,
   coverage through 2025–2026 (so the time-split has recent test data), and a spread of risk
   levels so the single "site"-aware model has both safe and unsafe examples to learn from.
-  Counts below match the committed `beaches.csv`. They'll shift by a few samples once the
-  pipeline is re-run on the newer export with the duplicate cleanup (week 1 task).
+  Counts below match the committed `beaches.csv` (newer export, duplicates removed).
 
   | Beach (region) | n (2018+) | unsafe % |
   |---|---|---|
-  | Kahaluʻu Beach (East) | 183 | 87% |
-  | Magic Island / Ala Moana — Canoe Launch (South) | 167 | 40% |
-  | Magic Island / Ala Moana — Bowls (South) | 167 | 17% |
+  | Kahaluʻu Beach (East) | 184 | 87% |
+  | Magic Island / Ala Moana — Canoe Launch (South) | 168 | 40% |
+  | Magic Island / Ala Moana — Bowls (South) | 165 | 18% |
   | Waialae Beach Park (South) | 146 | 27% |
-  | Kaʻalāwai / Cromwell's (South) | 163 | 10% |
-  | Pūpūkea tidepools / Shark's Cove (North) | 162 | 11% |
-  | Kaiaka Bay (North) | 91 | 42% |
-  | Kailua Beach Park (East) | 111 | 8% |
-  | Pōkaʻi Bay – Inside (West) | 77 | 7% |
+  | Kaʻalāwai / Cromwell's (South) | 162 | 10% |
+  | Pūpūkea tidepools / Shark's Cove (North) | 163 | 11% |
+  | Kaiaka Bay (North) | 92 | 41% |
+  | Kailua Beach Park (East) | 112 | 8% |
+  | Pōkaʻi Bay – Inside (West) | 77 | 6% |
 
-  **Totals: 1,267 samples, 29.9% unsafe.**
+  **Totals: 1,269 samples, 382 unsafe (30.1%).**
 
 - **Candidate additional swim beaches** (all excluded for now): Wailupe Beach Park (S,
   127/18%) and Pililāʻau (W, 46/13%) are the clean adds; South Kāneʻohe Bay + Kaimalino
@@ -213,13 +237,15 @@ Don't change a schema without telling the other person.
    enterococcus, ent_modifier, tide, unsafe`
    `unsafe = 1` when enterococcus > 130 MPN/100 mL (Hawaii DOH). `date` is the local
    Honolulu collection date (join key); `datetime_utc` is the exact timestamp.
-   (The committed copy predates the `tide` column until the pipeline is re-run.)
 2. **`data/processed/samples_beaches_weather.csv`** — the 9-beach samples plus weather
    features: `rain_same_day, rain_prev_7days, days_since_rain, temp_mean, wind_max`.
    The app model uses only the last four.
-3. **`data/processed/beaches.csv`** — one row per beach; read by the app.
+3. **`data/processed/beaches.csv`** — one row per beach; read by the app. Its beach names
+   come from the `BEACH_LABELS` list in `scripts/build_dataset.py` (same list as notebook
+   Part 4.4), in the order the app's beach picker shows them.
 4. **`models/model.json`** — the app model: intercept, beach offsets, feature weights and
-   scaling, `residual_sd`, weather grid points, and 2025–26 test metrics.
+   scaling, `residual_sd`, weather grid points, `n_train`, and 2025–26 test metrics including
+   `test.comparison` (the four-row table above).
 
 ## Ground rules
 - **No leakage.** Every weather feature uses only what was known at sample time. That's why
@@ -228,9 +254,13 @@ Don't change a schema without telling the other person.
 - **Be honest about limits.** Biweekly sampling under-represents storm days, the dataset is
   small, and the beach itself explains most of the risk.
 - **Disclose AI-tool use** (CAC rule); the code must be genuinely ours.
+- **We commit our own work.** Pull before you start, run the app before you commit, push
+  when done. If data or the model changes, re-run `python scripts/build_dataset.py` and commit
+  `data/processed/` and `models/model.json` together.
 
 ## Sources
 - [2026 CAC rules (PDF)](https://www.congressionalappchallenge.us/wp-content/uploads/2026/05/2026-CAC-Rules.pdf)
 - [Congressional App Challenge](https://www.congressionalappchallenge.us/): district map and student portal
 - [Surfrider Blue Water Task Force, Oʻahu report 44](https://bwtf.surfrider.org/report/44)
 - [Open-Meteo forecast API docs](https://open-meteo.com/en/docs)
+- [Streamlit Community Cloud: deploy an app](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app)
