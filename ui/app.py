@@ -1,23 +1,40 @@
-"""Design sample for the Oahu Water Quality app (Streamlit).
+"""Oʻahu Water Quality app (Streamlit).
 
 Layout mimics an editorial landing page: full-bleed hero, then numbered sections
-(01, 02, 03) that alternate text and a "card", then a footer.
+(01 check a beach, 02 why this score, 03 map) that alternate text and a "card", then a footer.
 
-The risk number comes from `placeholder_risk()`, a hand-made stand-in so the UI can be built
-before the real model exists. Swap it for `model.pkl` once training is done.
+Risk comes from the trained model in models/model.json (written by scripts/build_dataset.py),
+scored in risk_model.py with today's weather from the free Open-Meteo forecast API.
 
 Run:  streamlit run ui/app.py
 """
-from math import exp, log
+from datetime import date
 from pathlib import Path
 
 import pandas as pd
 import pydeck as pdk
 import streamlit as st
 
+import risk_model
+
 APP_DIR = Path(__file__).parent
 BEACHES_CSV = APP_DIR.parent / "data" / "processed" / "beaches.csv"
-UNSAFE_THRESHOLD = 0.5  # probability above which we flag the water as unsafe
+CAUTION_AT, UNSAFE_AT = 0.30, 0.60  # risk bands: lower risk / caution / likely unsafe
+
+# Model input -> (slider label, unit, step, number format)
+INPUTS = {
+    "rain_prev_7days": ("Rain in the past 7 days", "mm", 1.0, "%.0f"),
+    "days_since_rain": ("Dry days in a row", "days", 1.0, "%.0f"),
+    "temp_mean": ("Mean temperature today", "°C", 0.1, "%.1f"),
+    "wind_max": ("Max wind today", "km/h", 1.0, "%.0f"),
+}
+FACTOR_LABELS = {
+    "beach": "This beach's track record",
+    "rain_prev_7days": "Rain, past 7 days",
+    "days_since_rain": "Dry days in a row",
+    "temp_mean": "Temperature",
+    "wind_max": "Wind",
+}
 
 st.set_page_config(page_title="Kai Check · Oʻahu", page_icon="🌊", layout="wide")
 st.markdown(f"<style>{(APP_DIR / 'style.css').read_text()}</style>", unsafe_allow_html=True)
@@ -28,23 +45,35 @@ def load_beaches():
     return pd.read_csv(BEACHES_CSV)
 
 
-def placeholder_risk(history_pct, rain_24h, rain_7d, days_since_rain):
-    """Fake model: start from the beach's historical unsafe rate, then push it up with
-    rain and down with dry days. Returns (probability, {factor: log-odds push})."""
-    p0 = min(max(history_pct / 100, 0.03), 0.97)
-    island_avg = log(0.30 / 0.70)  # ~30% of samples island-wide are unsafe
-    pushes = {
-        "Beach history": log(p0 / (1 - p0)) - island_avg,
-        "Rain, last 24 h": 0.09 * rain_24h,
-        "Rain, last 7 days": 0.025 * rain_7d,
-        "Dry days in a row": -0.18 * min(days_since_rain, 7),
-    }
-    logit = island_avg + sum(pushes.values())
-    return 1 / (1 + exp(-logit)), pushes
+@st.cache_resource
+def load_model():
+    return risk_model.load_model()
+
+
+@st.cache_data(ttl=3600, show_spinner="Getting today's weather…")
+def fetch_live_features(site_points):
+    """({date}, {site_id: features}) from today's forecast. Errors are not cached, so a
+    failed fetch is retried on the next rerun."""
+    daily = risk_model.fetch_daily_weather([pt for _, pt in site_points])
+    today = next(iter(daily.values()))["time"][-1]
+    return today, {site: risk_model.features_from_daily(daily[pt]) for site, pt in site_points}
+
+
+def band(p):
+    if p < CAUTION_AT:
+        return "LOWER RISK", "var(--safe)"
+    return ("CAUTION", "var(--caution)") if p < UNSAFE_AT else ("LIKELY UNSAFE", "var(--unsafe)")
 
 
 def risk_color(p):
-    return "var(--safe)" if p < 0.3 else "var(--caution)" if p < UNSAFE_THRESHOLD else "var(--unsafe)"
+    return band(p)[1]
+
+
+def weather_line(f):
+    dry = int(f["days_since_rain"])
+    return (f"{f['rain_prev_7days']:.0f} mm of rain in the past week · "
+            f"{dry} dry day{'s' if dry != 1 else ''} in a row · "
+            f"{f['temp_mean']:.0f}°C · wind up to {f['wind_max']:.0f} km/h")
 
 
 def gauge_svg(p):
@@ -108,6 +137,13 @@ def section_head(num, eyebrow, title, body):
 
 
 beaches = load_beaches()
+model = load_model()
+site_points = tuple((str(s), tuple(model["weather_points"][str(s)])) for s in beaches.site_id)
+try:
+    forecast_date, live = fetch_live_features(site_points)
+except Exception:  # network down, API change, missing values: fall back to a typical day
+    forecast_date, live = None, None
+test = model["test"]
 
 # ------------------------------------------------------------------ Hero
 html(
@@ -143,24 +179,37 @@ with st.container(key="sec-check"):
             "above Hawaiʻi's safety limit (130 MPN/100 mL).",
         )
         beach = st.selectbox("Beach", beaches["beach_name"], index=4)
-        st.caption("Weather below will come live from NOAA. Drag to try different conditions.")
-        rain_24h = st.slider("Rain in the last 24 hours (mm)", 0.0, 50.0, 8.0, 0.5)
-        rain_7d = st.slider("Rain in the last 7 days (mm)", 0.0, 150.0, 25.0, 1.0)
-        dry_days = st.slider("Days since it last rained", 0, 14, 1)
+        row = beaches.set_index("beach_name").loc[beach]
+        site = str(row.site_id)
+        base = live[site] if live else risk_model.typical_features(model)
+        if live:
+            st.caption(f"Today's forecast from Open-Meteo: {weather_line(base)}.")
+        else:
+            st.caption("Live weather is unavailable right now, so this starts from a typical "
+                       "day. Move the sliders to try other conditions.")
+        what_if = st.toggle("Try different weather", value=live is None)
+        features = dict(base)
+        if what_if:
+            for name, (label, unit, step, fmt) in INPUTS.items():
+                lo, hi = model["features"][name]["min"], model["features"][name]["max"]
+                features[name] = st.slider(f"{label} ({unit})", lo, hi, min(max(base[name], lo), hi),
+                                           step, format=fmt, key=f"{name}-{site}")
 
-    row = beaches.set_index("beach_name").loc[beach]
-    prob, pushes = placeholder_risk(row.unsafe_pct, rain_24h, rain_7d, dry_days)
-    verdict = "UNSAFE — STAY OUT" if prob >= UNSAFE_THRESHOLD else "LIKELY SAFE"
+    prob, pushes = risk_model.predict(model, site, features)
+    verdict, color = band(prob)
+    when = ("What-if weather" if what_if or not live
+            else date.fromisoformat(forecast_date).strftime("%a %b %-d"))
     with card_col:
         html(
             f"""<div class="card">
-              <div class="label">{row.region} Shore · Today</div>
+              <div class="label">{row.region} Shore · {when}</div>
               <div class="beach">{beach}</div>
               {gauge_svg(prob)}
-              <div class="verdict" style="color:{risk_color(prob)}">{verdict}</div>
+              <div class="verdict" style="color:{color}">{verdict}</div>
               <div class="fine">Historically, {row.n_unsafe} of {row.n_samples} samples here
               ({row.unsafe_pct:.0f}%) were over the limit ({row.first_year}–{row.last_year}).
-              <br><br>Sample design · placeholder numbers, not the trained model yet.</div>
+              <br><br>A forecast from weather, not a lab test. Always follow posted
+              Department of Health advisories.</div>
             </div>"""
         )
 
@@ -169,20 +218,29 @@ with st.container(key="sec-why"):
     card_col, _, text_col = st.columns([4, 1, 5], vertical_alignment="center")
     biggest = max(abs(v) for v in pushes.values()) or 1
     factors = ""
-    for name, push in pushes.items():
-        color = "var(--unsafe)" if push > 0 else "var(--safe)"
-        effect = "raises risk" if push > 0.05 else "lowers risk" if push < -0.05 else "little effect"
-        factors += f"""<div class="factor"><div class="row"><b>{name}</b><span style="color:{color}">{effect}</span></div>
-            <div class="bar"><span style="width:{abs(push) / biggest * 100:.0f}%;background:{color}"></span></div></div>"""
+    for name, push in sorted(pushes.items(), key=lambda kv: -abs(kv[1])):
+        if abs(push) <= 0.05:
+            effect, tint = "little effect", "var(--text-muted)"
+        else:
+            effect, tint = ("raises risk", "var(--unsafe)") if push > 0 else ("lowers risk", "var(--safe)")
+        factors += f"""<div class="factor"><div class="row"><b>{FACTOR_LABELS[name]}</b>
+            <span style="color:{tint}">{effect}</span></div>
+            <div class="bar"><span style="width:{abs(push) / biggest * 100:.0f}%;background:{tint}"></span></div></div>"""
+    top = max(pushes, key=lambda k: abs(pushes[k]))
+    why = (f"Biggest factor today: <b>{FACTOR_LABELS[top].lower()}</b>, which "
+           f"{'raises' if pushes[top] > 0 else 'lowers'} the risk compared with an average beach and day.")
     with card_col:
-        st.markdown(f'<div class="card"><div class="label">What moved the needle</div>'
-                    f'<div class="beach">{beach}</div>{factors}</div>', unsafe_allow_html=True)
+        html(f"""<div class="card"><div class="label">What moved the needle</div>
+            <div class="beach">{beach}</div>{factors}<div class="fine">{why}</div></div>""")
     with text_col:
         section_head(
             "02", "What's driving it", "Why did we give<br>this score?",
-            "Rain is the big one: storm runoff carries soil, sewage, and animal waste into the "
-            "surf. Beaches near streams stay risky for days. Each bar shows how much one "
-            "factor pushed today's number up or down.",
+            "Rain washes soil, sewage, and animal waste into the surf, and some beaches, like "
+            "those near stream mouths, run high most of the time. Each bar shows how much one "
+            "factor pushed today's number up or down compared with an average beach and day. "
+            f"Tested on {test['n']} samples from {test['years'][0]}–{str(test['years'][1])[2:]} "
+            f"that the model never saw, flagging at 30% caught "
+            f"{test['flag_at_30']['recall']:.0%} of the unsafe ones.",
         )
         st.markdown('<a class="read-more" href="#about">how the model works &nbsp;→</a>',
                     unsafe_allow_html=True)
@@ -193,21 +251,26 @@ with st.container(key="sec-map"):
     with text_col:
         section_head(
             "03", "Where to swim", "Every beach,<br>at a glance",
-            "Dots are sized and colored by how often each beach has tested unsafe since 2018. "
-            "Tap one to see its record. Sites with too few samples show “not enough data”.",
+            ("Each dot is today's risk at that beach from the live forecast. "
+             if live else "Live weather is unavailable, so dots show risk on a typical day. ")
+            + "Green is lower risk, gold is caution, coral is likely unsafe. Tap a dot for details.",
         )
     with map_col:
-        pts = beaches.assign(
-            color=beaches.unsafe_pct.map(
-                lambda u: [95, 211, 184] if u < 20 else [251, 215, 132] if u < 40 else [242, 119, 92]),
-            radius=400 + beaches.unsafe_pct * 12,
-        )
+        rgb = {"LOWER RISK": [95, 211, 184], "CAUTION": [251, 215, 132], "LIKELY UNSAFE": [242, 119, 92]}
+        rows = []
+        for b in beaches.itertuples():
+            f = live[str(b.site_id)] if live else risk_model.typical_features(model)
+            p = features if b.beach_name == beach else f   # selected beach follows the what-if sliders
+            r, _ = risk_model.predict(model, b.site_id, p)
+            rows.append({"beach_name": b.beach_name, "latitude": b.latitude, "longitude": b.longitude,
+                         "risk": f"{r:.0%}", "history": f"{b.unsafe_pct:.0f}",
+                         "color": rgb[band(r)[0]], "radius": 1300 if b.beach_name == beach else 800})
         st.pydeck_chart(pdk.Deck(
             map_style="dark",
             initial_view_state=pdk.ViewState(latitude=21.47, longitude=-157.97, zoom=9),
-            layers=[pdk.Layer("ScatterplotLayer", pts, get_position="[longitude, latitude]",
+            layers=[pdk.Layer("ScatterplotLayer", pd.DataFrame(rows), get_position="[longitude, latitude]",
                               get_fill_color="color", get_radius="radius", opacity=0.85, pickable=True)],
-            tooltip={"text": "{beach_name}\n{unsafe_pct}% of samples unsafe"},
+            tooltip={"text": "{beach_name}\nRisk now: {risk}\n{history}% of past samples unsafe"},
         ), height=480)
 
 # ------------------------------------------------------------------ Footer
