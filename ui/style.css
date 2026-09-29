@@ -62,7 +62,7 @@
 .rail-right ol { list-style: none; margin: 0; padding: 0; text-align: right; }
 .rail-right li { height: 44px; }
 .rail-right li:first-child { color: var(--text); }
-.rail-right .track { width: 3px; height: 176px; background: var(--line); border-radius: 2px; }
+.rail-right .track { width: 3px; height: 220px; background: var(--line); border-radius: 2px; }
 .rail-right .track span { display: block; width: 3px; height: 44px; background: var(--text); border-radius: 2px; }
 
 /* ---------- Shared editorial type ---------- */
@@ -140,3 +140,32 @@
   [class*="st-key-sec-"] { padding: 24px 16px 72px; }
   .site-footer { grid-template-columns: 1fr; padding: 56px 16px 40px; }
 }
+
+/* ---------- 04 · Results chart (single series: recall per approach) ---------- */
+.card.chart { min-height: 0; }
+.bar-row { position: relative; margin-bottom: 26px; outline: none; }
+.bar-row .top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  font-size: 15px; margin-bottom: 8px; }
+.bar-row .note { color: var(--text-muted); font-size: 13px; }
+.bar-row .value { font-weight: 600; font-variant-numeric: tabular-nums; }
+.bar-row .track { height: 10px; background: var(--line); border-radius: 0 4px 4px 0; }
+.bar-row .fill { display: block; height: 100%; border-radius: 0 4px 4px 0;
+  background: rgba(255, 255, 255, 0.38); min-width: 2px; }
+.bar-row .fill.ours { background: var(--gold); }
+.bar-row .tip {
+  display: none; position: absolute; right: 0; top: 100%; z-index: 2; margin-top: 6px;
+  padding: 6px 10px; border-radius: 4px; background: var(--bg); border: 1px solid var(--line);
+  font-size: 13px; color: var(--text); white-space: nowrap;
+}
+.bar-row:hover .tip, .bar-row:focus .tip { display: block; }
+.bar-row:hover .track, .bar-row:focus .track { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15); }
+[data-testid="stExpander"] details { border-color: var(--line) !important; }
+
+/* ---------- Limits ---------- */
+.limits { display: grid; grid-template-columns: repeat(4, 1fr); gap: 40px; }
+.limits h3 { font-family: var(--serif); font-weight: 400; font-size: 24px; line-height: 1.2;
+  margin: 0 0 12px; padding: 0; color: var(--text); }
+.limits p { color: var(--text-muted); font-size: 15px; line-height: 1.65; margin: 0; }
+@media (max-width: 1100px) { .limits { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 760px) { .limits { grid-template-columns: 1fr; gap: 28px; }
+  .bar-row .tip { white-space: normal; left: 0; } }
