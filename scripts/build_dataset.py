@@ -32,6 +32,20 @@ import pandas as pd
 # The 9 swim beaches we train on, and each beach's nearest Open-Meteo grid cell.
 BEACH_SITE_IDS = [858, 859, 776, 861, 777, 8894, 780, 1197, 8916]
 SITE_TO_LOC = {858: 2, 859: 3, 776: 4, 861: 5, 777: 0, 8894: 1, 780: 6, 1197: 6, 8916: 8}
+# Editorial labels for beaches.csv — the same hand-kept lookup as notebook Part 4.4, in
+# BEACH_SITE_IDS order (grouped by shore). The app's beach picker lists beaches in this order.
+BEACH_LABELS = [
+    # site_id, beach_name, region, full_site_name
+    (858,  "Magic Island – Bowls (Ala Moana)",        "South", "South Oʻahu: Magic Island Bowls"),
+    (859,  "Magic Island – Canoe Launch (Ala Moana)", "South", "South Oʻahu: Magic Island Canoe Launch"),
+    (776,  "Kaʻalāwai / Cromwell's",                  "South", "South Oʻahu: Kaʻalāwai (Black Point/Cromwells)"),
+    (861,  "Waialae Beach Park",                      "South", "South Oʻahu: Waialae Beach Park"),
+    (777,  "Kahaluʻu Beach",                          "East",  "East Oʻahu: Kahaluʻu Beach"),
+    (8894, "Kailua Beach Park",                       "East",  "East Oʻahu: Kailua Beach Park"),
+    (780,  "Pūpūkea tidepools / Shark's Cove",        "North", "North Oʻahu: Pūpūkea tidepools"),
+    (1197, "Kaiaka Bay",                              "North", "North Oʻahu: Kaiaka Bay"),
+    (8916, "Pōkaʻi Bay (Inside)",                     "West",  "West Oʻahu: Pōkaʻi Bay- Inside"),
+]
 UNSAFE_THRESHOLD = 130  # Hawaii DOH: enterococcus > 130 MPN/100 mL is unsafe
 WEATHER_COLS = ["rain_same_day", "rain_prev_7days", "days_since_rain", "temp_mean", "wind_max"]
 # The app model only uses inputs the app can get from the Open-Meteo forecast before the
@@ -122,7 +136,7 @@ def join_weather(samples_beaches: pd.DataFrame, by_loc: dict) -> pd.DataFrame:
 # --------------------------------------------------------------------------- #
 # Part 4.4 — per-beach reference table
 # --------------------------------------------------------------------------- #
-def build_beaches_table(samples_beaches: pd.DataFrame, existing: Path | None) -> pd.DataFrame:
+def build_beaches_table(samples_beaches: pd.DataFrame) -> pd.DataFrame:
     sb = samples_beaches.copy()
     sb["year"] = sb["date"].str[:4].astype(int)
     agg = (sb.groupby("site_id")
@@ -131,12 +145,11 @@ def build_beaches_table(samples_beaches: pd.DataFrame, existing: Path | None) ->
                   first_year=("year", "min"), last_year=("year", "max"))
              .reset_index())
     agg["unsafe_pct"] = (agg["n_unsafe"] / agg["n_samples"] * 100).round(1)
-    # The descriptive labels (beach_name, region, full_site_name) are editorial —
-    # reuse them from the committed beaches.csv if it is available.
-    if existing and existing.exists():
-        labels = pd.read_csv(existing)[["site_id", "beach_name", "region", "full_site_name"]]
-        agg = labels.merge(agg, on="site_id", how="right")
-    return agg
+    # merge with the curated labels; the inner merge keeps the lookup's row order
+    labels = pd.DataFrame(BEACH_LABELS, columns=["site_id", "beach_name", "region", "full_site_name"])
+    beaches = labels.merge(agg, on="site_id")
+    return beaches[["site_id", "beach_name", "region", "full_site_name", "latitude", "longitude",
+                    "n_samples", "n_unsafe", "unsafe_pct", "first_year", "last_year"]]
 
 
 # --------------------------------------------------------------------------- #
@@ -336,7 +349,7 @@ def main():
     print(f"samples_beaches_weather.csv: {sbw.shape}")
 
     print("\n=== Part 4.4 — per-beach reference table ===")
-    beaches = build_beaches_table(samples_beaches, args.out_dir / "beaches.csv")
+    beaches = build_beaches_table(samples_beaches)
     beaches.to_csv(args.out_dir / "beaches.csv", index=False)
     print(f"beaches.csv: {beaches.shape}")
 
