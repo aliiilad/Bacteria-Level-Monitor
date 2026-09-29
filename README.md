@@ -58,7 +58,7 @@ levels. Full rationale and the per-beach table are in [`PLAN.md`](./PLAN.md).
 | `data/processed/samples.csv` | One row per BWTF sample, cleaned and labeled. The full archive. |
 | `data/processed/samples_beaches.csv` | `samples.csv` filtered to the 9 selected beaches (2018+). Training scope. |
 | `ui/` | Streamlit app (`streamlit run ui/app.py`). `risk_model.py` scores beaches from `models/model.json` using today's Open-Meteo forecast. |
-| `models/model.json` | App model: weights, feature scaling, and 2025–26 test metrics. Written by `scripts/build_dataset.py`. |
+| `models/model.json` | App model: weights, feature scaling, 2025–26 test metrics, and the baseline comparison shown in the app. Written by `scripts/build_dataset.py`. |
 | `.streamlit/config.toml` | Dark theme that matches `ui/style.css`. |
 | `data/processed/samples_beaches_weather.csv` | `samples_beaches.csv` joined with antecedent-weather features. |
 | `data/processed/beaches.csv` | One row per selected beach: location, sample counts, unsafe %. Map/reference table. |

@@ -37,7 +37,8 @@ WEATHER_COLS = ["rain_same_day", "rain_prev_7days", "days_since_rain", "temp_mea
 # The app model only uses inputs the app can get from the Open-Meteo forecast before the
 # day starts: no tide (not in the forecast) and no same-day rain (not known yet).
 APP_FEATURES = ["rain_prev_7days", "days_since_rain", "temp_mean", "wind_max"]
-TEST_FROM_YEAR = 2025  # time-based split: train 2018-2024, test 2025-2026
+TEST_FROM_YEAR = 2025
+FLASH_FLOOD_MM = 25.0  # rain that day that stands in for a flash-flood warning  # time-based split: train 2018-2024, test 2025-2026
 
 
 # --------------------------------------------------------------------------- #
@@ -241,30 +242,48 @@ def train_app_model(sbw: pd.DataFrame, points: dict, alpha, num_iters) -> dict:
     sites = sorted(df["site_id"].unique())
     ref_site = sites[0]                              # reference level, offset 0
 
-    def design(part, mu, spread):
-        X_site = np.column_stack([(part["site_id"] == s).to_numpy(float) for s in sites[1:]])
-        X_cont = ((part[APP_FEATURES] - mu) / spread).to_numpy(float)
-        return np.hstack([X_site, X_cont])
-
-    mu, spread = train[APP_FEATURES].mean(), train[APP_FEATURES].std()
-    X_tr, X_te = design(train, mu, spread), design(test, mu, spread)
     y_tr = np.log1p(train["enterococcus"].to_numpy(float))
-    w, b, _ = gradient_descent(X_tr, y_tr, np.zeros(X_tr.shape[1]), 0.0, alpha, num_iters)
-    sd = float(np.std(y_tr - (X_tr @ w + b)))        # spread of training residuals
-
     labels = test["unsafe"].to_numpy()
-    risk = risk_from_log_count(X_te @ w + b, sd)
+
+    def fit(feats):
+        """Fit site dummies + `feats` on train; return weights, scaling and test risk."""
+        mu, spread = train[feats].mean(), train[feats].std()
+
+        def design(part):
+            X_site = np.column_stack([(part["site_id"] == s).to_numpy(float) for s in sites[1:]])
+            return np.hstack([X_site, ((part[feats] - mu) / spread).to_numpy(float)])
+
+        X_tr = design(train)
+        w, b, _ = gradient_descent(X_tr, y_tr, np.zeros(X_tr.shape[1]), 0.0, alpha, num_iters)
+        sd = float(np.std(y_tr - (X_tr @ w + b)))    # spread of training residuals
+        return w, b, sd, mu, spread, risk_from_log_count(design(test) @ w + b, sd)
+
+    def score(flag):
+        hits = (flag & (labels == 1)).sum()
+        return {"recall": round(float(hits / labels.sum()), 3),
+                "precision": round(float(hits / max(flag.sum(), 1)), 3)}
+
+    w, b, sd, mu, spread, risk = fit(APP_FEATURES)
     auc = roc_auc(labels, risk)
     print(f"train {len(train)} samples | test {len(test)} samples, {labels.sum()} unsafe | "
           f"residual sd {sd:.3f} | test AUC {auc:.3f}")
-    metrics = {}
-    for cut in (0.3, 0.5):
-        flag = risk >= cut
-        recall = (flag & (labels == 1)).sum() / labels.sum()
-        precision = (flag & (labels == 1)).sum() / max(flag.sum(), 1)
-        metrics[f"flag_at_{int(cut * 100)}"] = {"recall": round(float(recall), 3),
-                                                "precision": round(float(precision), 3)}
-        print(f"  flag at {cut:.0%}: caught {recall:.0%} of unsafe, {precision:.0%} of flags were unsafe")
+    metrics = {f"flag_at_{int(cut * 100)}": score(risk >= cut) for cut in (0.3, 0.5)}
+
+    # Baselines on the same test samples, for the app's "how well it works" chart.
+    # Flash-flood stand-in: no real NWS warning archive, so flag days with >= 25 mm of rain.
+    flood_flag = test["rain_same_day"].fillna(0).to_numpy() >= FLASH_FLOOD_MM
+    *_, beach_risk = fit([])
+    comparison = [
+        {"name": "Flash-flood stand-in", "note": f"flags days with {FLASH_FLOOD_MM:.0f}+ mm of rain",
+         **score(flood_flag), "auc": None},
+        {"name": "Beach only", "note": "no weather, flags at 50%",
+         **score(beach_risk >= 0.5), "auc": round(float(roc_auc(labels, beach_risk)), 3)},
+        {"name": "Our model", "note": "flags at 50%", **metrics["flag_at_50"], "auc": round(float(auc), 3)},
+        {"name": "Our model", "note": "flags at 30%", **metrics["flag_at_30"], "auc": round(float(auc), 3)},
+    ]
+    for c in comparison:
+        print(f"  {c['name']:20s} {c['note']:32s} caught {c['recall']:.0%} of unsafe, "
+              f"{c['precision']:.0%} of flags were unsafe, AUC {c['auc']}")
 
     n_sites = len(sites) - 1
     return {
@@ -273,6 +292,7 @@ def train_app_model(sbw: pd.DataFrame, points: dict, alpha, num_iters) -> dict:
         "target": "ln(1 + enterococcus MPN/100 mL)",
         "unsafe_threshold": UNSAFE_THRESHOLD,
         "train_years": [int(train["date"].min()[:4]), int(train["date"].max()[:4])],
+        "n_train": int(len(train)),
         "intercept": float(b),
         "reference_site_id": int(ref_site),
         "site_offsets": {str(int(s)): (0.0 if s == ref_site else float(w[i - 1]))
@@ -286,7 +306,8 @@ def train_app_model(sbw: pd.DataFrame, points: dict, alpha, num_iters) -> dict:
         # fetches its live forecast at the same point so features match training.
         "weather_points": {str(int(s)): points[SITE_TO_LOC[int(s)]] for s in sites},
         "test": {"years": [TEST_FROM_YEAR, int(test["date"].max()[:4])], "n": int(len(test)),
-                 "n_unsafe": int(labels.sum()), "auc": round(float(auc), 3), **metrics},
+                 "n_unsafe": int(labels.sum()), "auc": round(float(auc), 3), **metrics,
+                 "comparison": comparison},
     }
 
 

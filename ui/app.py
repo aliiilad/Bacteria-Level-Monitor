@@ -129,9 +129,9 @@ def html(markup):
     st.markdown("\n".join(line.strip() for line in markup.splitlines()), unsafe_allow_html=True)
 
 
-def section_head(num, eyebrow, title, body):
+def section_head(num, eyebrow, title, body, anchor=""):
     html(
-        f"""<div class="section-head"><div class="num">{num}</div>
+        f"""<div class="section-head" id="{anchor}"><div class="num">{num}</div>
         <div class="eyebrow">{eyebrow}</div><h2>{title}</h2><p>{body}</p></div>"""
     )
 
@@ -152,12 +152,12 @@ html(
   {HERO_SCENE}
   <nav class="nav">
     <div class="brand">KAI CHECK</div>
-    <div class="links"><a href="#check">Beaches</a><a href="#why">How it works</a><a href="#map">Map</a></div>
+    <div class="links"><a href="#check">Beaches</a><a href="#why">How it works</a><a href="#map">Map</a><a href="#results">Results</a></div>
     <div><a href="#about">About</a></div>
   </nav>
   <div class="rail-left">Data · Surfrider Blue Water Task Force</div>
   <div class="rail-right">
-    <ol><li>Start</li><li>01</li><li>02</li><li>03</li></ol>
+    <ol><li>Start</li><li>01</li><li>02</li><li>03</li><li>04</li></ol>
     <div class="track"><span></span></div>
   </div>
   <div class="hero-copy">
@@ -177,6 +177,7 @@ with st.container(key="sec-check"):
             "Lab tests happen only every two weeks, but rain washes bacteria into the ocean "
             "within hours. We turn recent weather into today's chance that enterococcus is "
             "above Hawaiʻi's safety limit (130 MPN/100 mL).",
+            anchor="check",
         )
         beach = st.selectbox("Beach", beaches["beach_name"], index=4)
         row = beaches.set_index("beach_name").loc[beach]
@@ -241,8 +242,9 @@ with st.container(key="sec-why"):
             f"Tested on {test['n']} samples from {test['years'][0]}–{str(test['years'][1])[2:]} "
             f"that the model never saw, flagging at 30% caught "
             f"{test['flag_at_30']['recall']:.0%} of the unsafe ones.",
+            anchor="why",
         )
-        st.markdown('<a class="read-more" href="#about">how the model works &nbsp;→</a>',
+        st.markdown('<a class="read-more" href="#results">how well it works &nbsp;→</a>',
                     unsafe_allow_html=True)
 
 # ------------------------------------------------------------------ 03 · Map
@@ -254,6 +256,7 @@ with st.container(key="sec-map"):
             ("Each dot is today's risk at that beach from the live forecast. "
              if live else "Live weather is unavailable, so dots show risk on a typical day. ")
             + "Green is lower risk, gold is caution, coral is likely unsafe. Tap a dot for details.",
+            anchor="map",
         )
     with map_col:
         rgb = {"LOWER RISK": [95, 211, 184], "CAUTION": [251, 215, 132], "LIKELY UNSAFE": [242, 119, 92]}
@@ -273,6 +276,61 @@ with st.container(key="sec-map"):
             tooltip={"text": "{beach_name}\nRisk now: {risk}\n{history}% of past samples unsafe"},
         ), height=480)
 
+# ------------------------------------------------------------------ 04 · How well it works
+comparison = test["comparison"]
+beach_only = next(c for c in comparison if c["name"] == "Beach only")
+with st.container(key="sec-results"):
+    text_col, _, card_col = st.columns([5, 1, 5], vertical_alignment="center")
+    with text_col:
+        section_head(
+            "04", "How well it works", "Tested on days<br>it never saw",
+            f"We trained on {model['train_years'][0]}–{model['train_years'][1]} and held back "
+            f"{test['n']} samples from {test['years'][0]}–{str(test['years'][1])[2:]}, "
+            f"{test['n_unsafe']} of them unsafe. A rule that only warns on flash-flood-level rain "
+            f"caught {comparison[0]['recall']:.0%} of the unsafe ones. Our model, flagging at 30% "
+            f"risk, caught {test['flag_at_30']['recall']:.0%}.",
+            anchor="results",
+        )
+    with card_col:
+        rows = ""
+        for c in comparison:
+            ours = c["name"] == "Our model"
+            auc = f" · AUC {c['auc']:.2f}" if c["auc"] is not None else ""
+            rows += f"""<div class="bar-row" tabindex="0">
+                <div class="top"><span><b>{c['name']}</b> <span class="note">{c['note']}</span></span>
+                <span class="value">{c['recall']:.0%}</span></div>
+                <div class="track"><span class="fill{' ours' if ours else ''}" style="width:{c['recall'] * 100:.1f}%"></span></div>
+                <div class="tip">{c['precision']:.0%} of its flags were really unsafe{auc}</div></div>"""
+        html(f"""<div class="card chart"><div class="label">Share of unsafe samples caught</div>
+            <div class="beach">{test['years'][0]}–{str(test['years'][1])[2:]} test samples</div>{rows}
+            <div class="fine">Hover or tap a bar for how often its warnings were right.</div></div>""")
+        with st.expander("Show as table"):
+            st.dataframe(pd.DataFrame([{
+                "Approach": f"{c['name']} ({c['note']})",
+                "Unsafe caught": f"{c['recall']:.0%}",
+                "Flags that were unsafe": f"{c['precision']:.0%}",
+                "AUC": "–" if c["auc"] is None else f"{c['auc']:.2f}",
+            } for c in comparison]), hide_index=True, use_container_width=True)
+
+# ------------------------------------------------------------------ Limits
+LIMITS = [
+    ("The beach does most of the work",
+     f"Knowing the beach alone scores an AUC of {beach_only['auc']:.2f}. Weather adds about "
+     f"{test['auc'] - beach_only['auc']:.2f} on top. Rain matters, but some spots run high almost always."),
+    ("Storm days are rare in the data",
+     "Volunteers sample every two weeks on a fixed schedule, so few samples land right after "
+     "big storms. The model has seen the worst days least."),
+    ("The baseline is a stand-in",
+     "There is no archive of real flash-flood warnings to test against, so the comparison uses "
+     "days with 25 mm or more of rain as an approximation."),
+    ("A forecast, not a lab test",
+     f"About {model['n_train'] + test['n']:,} samples at {len(model['site_offsets'])} beaches is a small "
+     "dataset. Always follow posted Department of Health advisories."),
+]
+with st.container(key="sec-limits"):
+    html('<div class="eyebrow" id="limits">Know the limits</div><div class="limits">'
+         + "".join(f"<div><h3>{t}</h3><p>{b}</p></div>" for t, b in LIMITS) + "</div>")
+
 # ------------------------------------------------------------------ Footer
 html(
     """
@@ -280,7 +338,7 @@ html(
   <div><div class="brand">KAI CHECK</div>
     <p>A Congressional App Challenge project predicting ocean bacteria risk at Oʻahu beaches.
     A forecast, not a lab test — always follow posted Department of Health advisories.</p></div>
-  <div><h4>The Project</h4><a href="#why">How it works</a><a href="#about">Limitations</a>
+  <div><h4>The Project</h4><a href="#why">How it works</a><a href="#results">Results</a><a href="#limits">Limitations</a>
     <a href="#about">About the team</a></div>
   <div><h4>Data</h4><a href="https://bwtf.surfrider.org/report/44">Surfrider BWTF</a>
     <a href="https://open-meteo.com">Open-Meteo</a><a href="https://health.hawaii.gov/cwb/">Hawaiʻi DOH</a></div>
