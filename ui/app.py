@@ -198,8 +198,12 @@ with st.container(key="sec-check"):
 
     prob, pushes = risk_model.predict(model, site, features)
     verdict, color = band(prob)
-    when = ("What-if weather" if what_if or not live
-            else date.fromisoformat(forecast_date).strftime("%a %b %-d"))
+    if what_if or not live:
+        when = "What-if weather"
+    else:
+        d = date.fromisoformat(forecast_date)
+        when = f"{d:%a %b} {d.day}"
+    
     with card_col:
         html(
             f"""<div class="card">
@@ -310,7 +314,7 @@ with st.container(key="sec-results"):
                 "Unsafe caught": f"{c['recall']:.0%}",
                 "Flags that were unsafe": f"{c['precision']:.0%}",
                 "AUC": "–" if c["auc"] is None else f"{c['auc']:.2f}",
-            } for c in comparison]), hide_index=True, use_container_width=True)
+            } for c in comparison]), hide_index=True, width="stretch")
 
 # ------------------------------------------------------------------ Limits
 LIMITS = [
