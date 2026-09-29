@@ -1,0 +1,142 @@
+/* Design system for the app — inspired by the "MNTN" editorial landing-page style:
+   deep dark background, big serif headlines, small gold letter-spaced "eyebrow" labels
+   with a leading rule, huge faded section numbers, and portrait "cards" beside the text. */
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Outfit:wght@300;400;600;700&display=swap');
+
+:root {
+  --bg: #0b1d26;          /* deep ocean navy, the page background */
+  --bg-raised: #10283a;   /* cards */
+  --line: rgba(255, 255, 255, 0.12);
+  --text: #ffffff;
+  --text-muted: rgba(255, 255, 255, 0.72);
+  --gold: #fbd784;        /* accent: eyebrows, links, highlights */
+  --safe: #5fd3b8;
+  --caution: #fbd784;
+  --unsafe: #f2775c;
+  --serif: 'DM Serif Display', Georgia, serif;
+  --sans: 'Outfit', 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* ---------- Streamlit chrome: remove it so the page reads like a website ---------- */
+.stApp { background: var(--bg); color: var(--text); font-family: var(--sans); }
+[data-testid="stHeader"], [data-testid="stToolbar"], footer { display: none; }
+.block-container, [data-testid="stMainBlockContainer"] {
+  padding: 0 !important; max-width: 100% !important;
+}
+.stMarkdown p, .stMarkdown li, label, .stSlider, .stSelectbox { font-family: var(--sans); }
+
+/* ---------- Hero ---------- */
+.hero { position: relative; height: min(92vh, 860px); min-height: 620px; overflow: hidden; }
+.hero svg.scene { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hero::after { /* fade the artwork into the page background, like the reference photo */
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 45%;
+  background: linear-gradient(to bottom, rgba(11, 29, 38, 0), var(--bg));
+}
+.nav {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 3;
+  display: flex; align-items: center; justify-content: space-between; padding: 32px 7vw;
+  font-size: 14px; font-weight: 600;
+}
+.nav .brand { font-family: var(--serif); font-size: 22px; letter-spacing: 0.08em; }
+.nav .links { display: flex; gap: 40px; }
+.nav a { color: var(--text) !important; text-decoration: none; }
+.nav a:hover { color: var(--gold) !important; }
+
+.hero-copy { position: absolute; z-index: 3; top: 230px; left: 29vw; right: 12vw; }
+.hero-copy h1 {
+  font-family: var(--serif); font-weight: 400; font-size: clamp(40px, 5.4vw, 80px);
+  line-height: 1.08; margin: 0 0 32px; color: var(--text); padding: 0;
+}
+.scroll-hint { font-size: 14px; font-weight: 600; color: var(--text-muted); }
+
+/* Side rails (left: vertical label, right: section progress) */
+.rail-left {
+  position: absolute; z-index: 3; left: 7vw; top: 270px;
+  writing-mode: vertical-rl; font-size: 13px; font-weight: 600; letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+.rail-right {
+  position: absolute; z-index: 3; right: 7vw; top: 270px; display: flex; gap: 18px;
+  font-size: 13px; font-weight: 600; color: var(--text-muted);
+}
+.rail-right ol { list-style: none; margin: 0; padding: 0; text-align: right; }
+.rail-right li { height: 44px; }
+.rail-right li:first-child { color: var(--text); }
+.rail-right .track { width: 3px; height: 176px; background: var(--line); border-radius: 2px; }
+.rail-right .track span { display: block; width: 3px; height: 44px; background: var(--text); border-radius: 2px; }
+
+/* ---------- Shared editorial type ---------- */
+.eyebrow {
+  display: flex; align-items: center; gap: 24px; margin-bottom: 20px;
+  color: var(--gold); font-size: 14px; font-weight: 700; letter-spacing: 0.4em;
+  text-transform: uppercase;
+}
+.eyebrow::before { content: ""; width: 72px; height: 2px; background: var(--gold); }
+
+.section-head { position: relative; padding-top: 70px; }
+.section-head .num {
+  position: absolute; top: 0; left: -80px; z-index: 0;
+  font-family: var(--sans); font-weight: 700; font-size: 220px; line-height: 1;
+  color: rgba(255, 255, 255, 0.07); user-select: none;
+}
+.section-head .eyebrow, .section-head h2, .section-head p { position: relative; z-index: 1; }
+.section-head h2 {
+  font-family: var(--serif); font-weight: 400; font-size: clamp(34px, 3.8vw, 60px);
+  line-height: 1.12; margin: 0 0 24px; color: var(--text); padding: 0;
+}
+.section-head p { color: var(--text-muted); font-size: 17px; line-height: 1.7; max-width: 520px; }
+.read-more { color: var(--gold) !important; font-weight: 600; text-decoration: none; }
+
+/* Section wrappers (Streamlit containers keyed "sec-…" get the class .st-key-sec-…) */
+[class*="st-key-sec-"] { padding: 40px 12vw 110px; }
+
+/* ---------- Cards (the "portrait photo" slot in the reference) ---------- */
+.card {
+  position: relative; overflow: hidden; border-radius: 4px; background: var(--bg-raised);
+  border: 1px solid var(--line); padding: 40px 36px; min-height: 520px;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.35);
+}
+.card .label { font-size: 13px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--text-muted); }
+.card .beach { font-family: var(--serif); font-size: 30px; margin: 6px 0 24px; }
+.gauge { width: 100%; max-width: 360px; display: block; margin: 0 auto; }
+.verdict { text-align: center; font-size: 15px; letter-spacing: 0.3em; font-weight: 700; margin-top: 8px; }
+.card .fine { font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-top: 28px; }
+
+.factor { margin-bottom: 26px; }
+.factor .row { display: flex; justify-content: space-between; font-size: 15px; margin-bottom: 8px; }
+.factor .row b { font-weight: 600; }
+.factor .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.factor .bar span { display: block; height: 100%; border-radius: 3px; }
+.factor .why { font-size: 13px; color: var(--text-muted); margin-top: 6px; }
+
+/* ---------- Widgets restyled to match ---------- */
+[data-testid="stWidgetLabel"] p { color: var(--text-muted) !important; font-size: 13px !important;
+  letter-spacing: 0.2em; text-transform: uppercase; font-weight: 600; }
+[data-baseweb="select"] > div { background: transparent !important; border: 0 !important;
+  border-bottom: 2px solid var(--gold) !important; border-radius: 0 !important;
+  font-family: var(--serif); font-size: 22px; color: var(--text) !important; }
+[data-testid="stSlider"] [role="slider"] { background: var(--gold) !important; box-shadow: none !important; }
+[data-testid="stSliderThumbValue"] { color: var(--gold) !important; font-family: var(--sans); }
+[data-testid="stDeckGlJsonChart"] { border-radius: 4px; overflow: hidden; border: 1px solid var(--line); }
+
+/* ---------- Footer ---------- */
+.site-footer {
+  display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 48px;
+  padding: 80px 12vw 60px; border-top: 1px solid var(--line); font-size: 15px;
+}
+.site-footer .brand { font-family: var(--serif); font-size: 26px; letter-spacing: 0.08em; margin-bottom: 16px; }
+.site-footer p { color: var(--text-muted); line-height: 1.7; max-width: 380px; }
+.site-footer h4 { color: var(--gold); font-family: var(--sans); font-size: 15px; font-weight: 700; margin: 0 0 18px; padding: 0; }
+.site-footer a { display: block; color: var(--text) !important; text-decoration: none; margin-bottom: 12px; }
+.site-footer .copy { grid-column: 1 / -1; font-size: 13px; color: var(--text-muted); }
+
+/* ---------- Phone widths ---------- */
+@media (max-width: 760px) {
+  .nav { padding: 20px 16px; } .nav .links { display: none; }
+  .hero-copy { left: 16px; right: 16px; top: 170px; }
+  .rail-left, .rail-right { display: none; }
+  .eyebrow { gap: 14px; letter-spacing: 0.25em; font-size: 12px; } .eyebrow::before { width: 40px; }
+  .section-head .num { left: -8px; font-size: 140px; }
+  [class*="st-key-sec-"] { padding: 24px 16px 72px; }
+  .site-footer { grid-template-columns: 1fr; padding: 56px 16px 40px; }
+}

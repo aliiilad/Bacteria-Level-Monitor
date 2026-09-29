@@ -15,12 +15,15 @@ Run from the repo root:
 Inputs  (data/raw/):   surfrider_raw.csv, weather_openmeteo_raw.csv
 Outputs (data/processed/): samples.csv, samples_beaches.csv,
                            samples_beaches_weather.csv, beaches.csv
+        (models/):         model.json — the app model, read by ui/app.py
 """
 
 from __future__ import annotations
 
 import argparse
 import io
+import json
+import math
 from pathlib import Path
 
 import numpy as np
@@ -31,6 +34,10 @@ BEACH_SITE_IDS = [858, 859, 776, 861, 777, 8894, 780, 1197, 8916]
 SITE_TO_LOC = {858: 2, 859: 3, 776: 4, 861: 5, 777: 0, 8894: 1, 780: 6, 1197: 6, 8916: 8}
 UNSAFE_THRESHOLD = 130  # Hawaii DOH: enterococcus > 130 MPN/100 mL is unsafe
 WEATHER_COLS = ["rain_same_day", "rain_prev_7days", "days_since_rain", "temp_mean", "wind_max"]
+# The app model only uses inputs the app can get from the Open-Meteo forecast before the
+# day starts: no tide (not in the forecast) and no same-day rain (not known yet).
+APP_FEATURES = ["rain_prev_7days", "days_since_rain", "temp_mean", "wind_max"]
+TEST_FROM_YEAR = 2025  # time-based split: train 2018-2024, test 2025-2026
 
 
 # --------------------------------------------------------------------------- #
@@ -84,6 +91,13 @@ def load_daily_weather(weather_path: Path) -> dict[int, pd.DataFrame]:
     daily["_grp"] = (~daily["dry"]).groupby(daily.location_id).cumsum()
     daily["dry_streak"] = daily.groupby(["location_id", "_grp"]).cumcount()
     return {lid: g.set_index("time").sort_index() for lid, g in daily.groupby("location_id")}
+
+
+def load_weather_points(weather_path: Path) -> dict[int, list[float]]:
+    """Return {location_id: [lat, lon]} from the metadata block above the daily series."""
+    lines = weather_path.read_text(encoding="utf-8").splitlines()
+    meta = pd.read_csv(io.StringIO("\n".join(lines[:lines.index("")])))
+    return {int(r.location_id): [float(r.latitude), float(r.longitude)] for r in meta.itertuples()}
 
 
 def join_weather(samples_beaches: pd.DataFrame, by_loc: dict) -> pd.DataFrame:
@@ -197,10 +211,88 @@ def train_and_report(X_A, X_B, y, mu, sigma, scale_cols, alpha, num_iters):
 
 
 # --------------------------------------------------------------------------- #
+# Part 8 — the app model: time-split fit, evaluation, export to model.json
+# --------------------------------------------------------------------------- #
+def normal_cdf(z):
+    return 0.5 * (1 + np.vectorize(math.erf)(z / math.sqrt(2)))
+
+
+def risk_from_log_count(y_hat, sd):
+    """P(enterococcus > 130) when ln(1 + count) ~ Normal(y_hat, sd)."""
+    return 1 - normal_cdf((math.log1p(UNSAFE_THRESHOLD) - y_hat) / sd)
+
+
+def roc_auc(labels, scores):
+    """Chance a random unsafe sample scores higher than a random safe one (ties count 1/2)."""
+    pos, neg = scores[labels == 1], scores[labels == 0]
+    greater = (pos[:, None] > neg[None, :]).sum()
+    ties = (pos[:, None] == neg[None, :]).sum()
+    return (greater + 0.5 * ties) / (len(pos) * len(neg))
+
+
+def train_app_model(sbw: pd.DataFrame, points: dict, alpha, num_iters) -> dict:
+    df = sbw.dropna(subset=APP_FEATURES).copy()
+    is_test = df["date"].str[:4].astype(int) >= TEST_FROM_YEAR
+    train, test = df[~is_test], df[is_test]
+
+    sites = sorted(df["site_id"].unique())
+    ref_site = sites[0]                              # reference level, offset 0
+
+    def design(part, mu, spread):
+        X_site = np.column_stack([(part["site_id"] == s).to_numpy(float) for s in sites[1:]])
+        X_cont = ((part[APP_FEATURES] - mu) / spread).to_numpy(float)
+        return np.hstack([X_site, X_cont])
+
+    mu, spread = train[APP_FEATURES].mean(), train[APP_FEATURES].std()
+    X_tr, X_te = design(train, mu, spread), design(test, mu, spread)
+    y_tr = np.log1p(train["enterococcus"].to_numpy(float))
+    w, b, _ = gradient_descent(X_tr, y_tr, np.zeros(X_tr.shape[1]), 0.0, alpha, num_iters)
+    sd = float(np.std(y_tr - (X_tr @ w + b)))        # spread of training residuals
+
+    labels = test["unsafe"].to_numpy()
+    risk = risk_from_log_count(X_te @ w + b, sd)
+    auc = roc_auc(labels, risk)
+    print(f"train {len(train)} samples | test {len(test)} samples, {labels.sum()} unsafe | "
+          f"residual sd {sd:.3f} | test AUC {auc:.3f}")
+    metrics = {}
+    for cut in (0.3, 0.5):
+        flag = risk >= cut
+        recall = (flag & (labels == 1)).sum() / labels.sum()
+        precision = (flag & (labels == 1)).sum() / max(flag.sum(), 1)
+        metrics[f"flag_at_{int(cut * 100)}"] = {"recall": round(float(recall), 3),
+                                                "precision": round(float(precision), 3)}
+        print(f"  flag at {cut:.0%}: caught {recall:.0%} of unsafe, {precision:.0%} of flags were unsafe")
+
+    n_sites = len(sites) - 1
+    return {
+        "description": "Linear regression on ln(1 + enterococcus), fit by hand-written "
+                       "gradient descent. risk = 1 - Phi((ln(131) - y_hat) / residual_sd).",
+        "target": "ln(1 + enterococcus MPN/100 mL)",
+        "unsafe_threshold": UNSAFE_THRESHOLD,
+        "train_years": [int(train["date"].min()[:4]), int(train["date"].max()[:4])],
+        "intercept": float(b),
+        "reference_site_id": int(ref_site),
+        "site_offsets": {str(int(s)): (0.0 if s == ref_site else float(w[i - 1]))
+                         for i, s in enumerate(sites)},
+        "features": {f: {"weight": float(w[n_sites + i]), "mean": float(mu[f]),
+                         "spread": float(spread[f]), "min": float(train[f].min()),
+                         "max": float(train[f].max())}
+                     for i, f in enumerate(APP_FEATURES)},
+        "residual_sd": sd,
+        # Open-Meteo grid point each beach's training weather came from; the app
+        # fetches its live forecast at the same point so features match training.
+        "weather_points": {str(int(s)): points[SITE_TO_LOC[int(s)]] for s in sites},
+        "test": {"years": [TEST_FROM_YEAR, int(test["date"].max()[:4])], "n": int(len(test)),
+                 "n_unsafe": int(labels.sum()), "auc": round(float(auc), 3), **metrics},
+    }
+
+
+# --------------------------------------------------------------------------- #
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--raw-dir", default="data/raw", type=Path)
     ap.add_argument("--out-dir", default="data/processed", type=Path)
+    ap.add_argument("--model-out", default="models/model.json", type=Path)
     ap.add_argument("--alpha", default=0.3, type=float, help="gradient-descent learning rate")
     ap.add_argument("--iters", default=3000, type=int, help="gradient-descent iterations")
     args = ap.parse_args()
@@ -232,6 +324,13 @@ def main():
     print(f"X_train_A {X_A.shape} | X_train_B {X_B.shape} | y {y.shape}")
 
     train_and_report(X_A, X_B, y, mu, sigma, scale_cols, args.alpha, args.iters)
+
+    print("\n=== Part 8 — app model (time split) -> model.json ===")
+    points = load_weather_points(args.raw_dir / "weather_openmeteo_raw.csv")
+    model = train_app_model(sbw, points, args.alpha, args.iters)
+    args.model_out.parent.mkdir(parents=True, exist_ok=True)
+    args.model_out.write_text(json.dumps(model, indent=2) + "\n")
+    print(f"wrote {args.model_out}")
 
 
 if __name__ == "__main__":
