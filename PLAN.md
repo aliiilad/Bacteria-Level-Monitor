@@ -43,7 +43,7 @@ the end of each week.
 - [ ] Small fixes: the Windows date bug, the deprecated Streamlit argument, and the misplaced
       comment are fixed; the Magic Island pin is left (week 1).
 - [ ] New features: 3-day outlook, "What should I do?" with a safer-beach suggestion, and a
-      shareable beach link (weeks 2–3). The honu mascot only if there's time.
+      shareable beach link (weeks 2–3). Email alerts only if there's time.
 - [ ] README and CLAUDE.md still describe the old plan.
 - [ ] "About the team" section.
 - [ ] Video and submission.
@@ -119,13 +119,45 @@ must be done by **Sunday, Oct 18**; after that we only fix bugs and make the vid
      distance. We have no driving times, so don't claim minutes.
    - The two Magic Island points are the same beach: never suggest one for the other.
    - If no beach is lower risk today, say so.
+   - Put the logic (distance, safer-beach pick, advice per band) in a new plain-Python file,
+     `ui/recommend.py`, with no Streamlit in it. `ui/app.py` only calls it and draws the
+     result. See "App architecture and user data" below.
 3. **Shareable beach link** (Person B). `?beach=kailua` opens the app on that beach.
    - Read `st.query_params` on load to pick the beach; update it when the beach changes.
    - Give each beach a short name for the link (a dict in `ui/app.py`).
    - One line under the picker: "Bookmark this page or add it to your Home Screen."
-4. **Honu mascot, only if there's time** (Person B). A sea turtle in inline SVG next to the
-   verdict, with three moods tied to the band. Start it only if 1–3 are done by
-   Wednesday, Oct 14.
+4. **Email alerts, only if there's time** (Person B). Subscribe with an email and a beach;
+   get an email on mornings when that beach is likely unsafe (over 60%). Start it only if
+   1–3 are done by **Saturday, Oct 10**. It must still make the Oct 18 freeze.
+   - **Subscribe form** in `ui/app.py`: email + beach + "Alert me".
+   - **Database:** one free Supabase table: email, beach, confirmed yes/no, and a random
+     unsubscribe code. No names or anything else.
+   - **Daily job:** a GitHub Actions workflow runs a Python script at about 5:30am HST. It
+     fetches weather, scores each beach with `ui/risk_model.py`, and emails subscribers whose
+     beach is over 60% today.
+   - **Email service:** a free tier (e.g. Resend) sends the emails.
+   - **Must-haves:** a "click to confirm" email before any alert, so nobody can sign up
+     someone else; an unsubscribe link in every email; API keys only in Streamlit and GitHub
+     secret settings, never in the repo; wording like "Forecast: high bacteria risk at
+     Kailua today" plus "not an official advisory", never "the water is unsafe".
+   - Not ntfy push notifications: not everyone has the ntfy app.
+
+## App architecture and user data (decided Sep 30)
+- **We stay on Streamlit.** Full stack (separate JavaScript front end, API server, and
+  database) would mean rebuilding a working app in a new language before the Oct 18 freeze,
+  with more of the code coming from AI. Judges score what the app does and how we explain it,
+  not the framework. "Rigor" is our test results, and those don't depend on the stack.
+- **Keep logic separate from display,** so a move to full stack later reuses the code:
+  plain-Python files (`ui/risk_model.py`, `ui/recommend.py`) hold the model, distance,
+  safer-beach, and advice logic; only `ui/app.py` imports Streamlit. A later FastAPI or Flask
+  back end, or the email-alert job, imports the same files unchanged.
+- **User data:** the app stores none. `beaches.csv` and `model.json` are app data, the same
+  for everyone, in the repo. "Remember my beach" is the `?beach=` link: it survives a refresh,
+  and bookmarking or sharing it is how people save or share a check. No accounts.
+- **The only exception is email alerts (feature 4):** email address + beach, nothing else,
+  confirmed and unsubscribable. Say this plainly in the app and the README.
+- **Full stack is only worth it** if we later need things Streamlit can't do, like accounts
+  that follow a user across devices. Not before the CAC deadline.
 
 ## Week-by-week plan
 Weeks run Monday to Sunday, Hawaiʻi time. Items already done on `main` are ticked.
@@ -207,7 +239,7 @@ Weeks run Monday to Sunday, Hawaiʻi time. Items already done on `main` are tick
 - [ ] Check the layout on a phone.
 - [ ] Shareable beach link: `?beach=...` opens that beach, plus the "add to Home Screen"
       line (new feature 3).
-- [ ] Only if features 1–3 are done by Wed, Oct 14: honu mascot (new feature 4).
+- [ ] Only if features 1–3 are done by Sat, Oct 10: email alerts (new feature 4).
 - [x] Clear message when the weather fetch fails (falls back to a typical day), and an
       hourly weather cache.
 - [ ] README with screenshots, the live URL, and the AI disclosure.
