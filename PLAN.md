@@ -3,7 +3,7 @@
 Working plan for the Congressional App Challenge entry. Project context lives in
 [`CLAUDE.md`](./CLAUDE.md); this file tracks **what we're doing, who's doing it, and in what
 order.** The model is done, and the app runs locally with live weather, its test results, and
-a limits section. What's left is deploying it, a few small fixes, rewriting the README, an
+a limits section. What's left is deploying it, a few small fixes, three new features (see "New features" below), rewriting the README, an
 "About the team" section, and a 3-minute video.
 
 **Person A** owns the model and data. **Person B** owns the app. The same plan is also on a
@@ -40,8 +40,10 @@ the end of each week.
       bars, what-if sliders, map, "How well it works" chart (section 04), "Know the limits"
       cards, and a fallback when the weather fetch fails. Runs with no errors.
 - [ ] Deployed to a public URL.
-- [ ] Small fixes: Magic Island pin, a Windows date bug, a deprecated Streamlit argument, a
-      misplaced comment (week 1).
+- [ ] Small fixes: the Windows date bug, the deprecated Streamlit argument, and the misplaced
+      comment are fixed; the Magic Island pin is left (week 1).
+- [ ] New features: 3-day outlook, "What should I do?" with a safer-beach suggestion, and a
+      shareable beach link (weeks 2–3). The honu mascot only if there's time.
 - [ ] README and CLAUDE.md still describe the old plan.
 - [ ] "About the team" section.
 - [ ] Video and submission.
@@ -90,6 +92,41 @@ risk = 1 − Φ((ln 131 − ŷ) / σ),  σ ≈ 1.42                  chance of m
   at 99%. The app fetches weather at the same grid points the training data came from, and
   caches it for an hour.
 
+## New features (decided Sep 30)
+Three features that turn the gauge into a decision, plus one if there's time. All of them
+must be done by **Sunday, Oct 18**; after that we only fix bugs and make the video.
+
+1. **3-day outlook** (Person A). A row under the gauge card: today plus the next 3 days,
+   each with its risk % and color, e.g. "Tue 38% · Wed 36% · Thu 71%".
+   - `ui/risk_model.py`: in `fetch_daily_weather`, change `forecast_days` from 1 to 4.
+     Today is then the 4th entry from the end, not the last.
+   - `ui/app.py`: `fetch_live_features` assumes the last entry is today, both for the date
+     (`["time"][-1]`) and for the features. Cut the lists off at today so the gauge, map,
+     and "why" bars stay on today.
+   - For each of the 4 days, cut the daily lists off at that day and pass them to
+     `features_from_daily` (it treats the last entry as "today"), then to `predict`.
+   - Mark days 2–3 "less certain": forecast rain gets less reliable further out.
+   - **Known catch:** rain enters the model only as a 7-day total, so after a storm the risk
+     stays almost flat for a week, then drops all at once on day 8 (Magic Island – Bowls
+     after 60 mm: 39%, 38%, … 34%, then 12%). The outlook will show rain *coming*, not the
+     water clearing after 2–3 days. See the week 3 experiment.
+2. **"What should I do?" + a safer beach** (Person B). Under the verdict:
+   - 2–3 plain lines of advice for each band (lower risk / caution / likely unsafe). Take
+     the health wording from the Hawaiʻi DOH Clean Water Branch site, not from an AI tool.
+   - When the band is caution or likely unsafe, suggest the nearest beach that's lower risk
+     today, e.g. "Kailua Beach Park · 12% · 14 km away". Use the same risk numbers as the
+     map, and the haversine formula on the lat/lon in `beaches.csv` for straight-line
+     distance. We have no driving times, so don't claim minutes.
+   - The two Magic Island points are the same beach: never suggest one for the other.
+   - If no beach is lower risk today, say so.
+3. **Shareable beach link** (Person B). `?beach=kailua` opens the app on that beach.
+   - Read `st.query_params` on load to pick the beach; update it when the beach changes.
+   - Give each beach a short name for the link (a dict in `ui/app.py`).
+   - One line under the picker: "Bookmark this page or add it to your Home Screen."
+4. **Honu mascot, only if there's time** (Person B). A sea turtle in inline SVG next to the
+   verdict, with three moods tied to the band. Start it only if 1–3 are done by
+   Wednesday, Oct 14.
+
 ## Week-by-week plan
 Weeks run Monday to Sunday, Hawaiʻi time. Items already done on `main` are ticked.
 
@@ -102,16 +139,16 @@ Weeks run Monday to Sunday, Hawaiʻi time. Items already done on `main` are tick
 - [x] Re-run `python scripts/build_dataset.py` and commit `data/processed/`.
 - [x] Add the flash-flood stand-in to Part 8's printout. Its precision moved from 67% to 57%
       after the duplicate cleanup; recall is still 4%.
-- [ ] Fix the comment on line 55 of `scripts/build_dataset.py`. The "time-based split"
+- [x] Fix the comment on line 55 of `scripts/build_dataset.py`. The "time-based split"
       comment got glued onto the `FLASH_FLOOD_MM` line; it belongs on `TEST_FROM_YEAR`.
 
 **Person B — app & product**
 - [x] Streamlit app with map and gauge (`ui/app.py`), with `ui/requirements.txt`.
 - [ ] Pin exact versions in `ui/requirements.txt` (the ones that work on your laptop,
       from `pip freeze`), so the deployed app installs the same Streamlit you tested.
-- [ ] Replace `use_container_width=True` with `width="stretch"` in `ui/app.py` (line 313).
+- [x] Replace `use_container_width=True` with `width="stretch"` in `ui/app.py` (line 313).
       Streamlit prints a warning that the old argument is being removed.
-- [ ] Fix the date on the gauge card (`ui/app.py` line 202): `strftime("%a %b %-d")` crashes
+- [x] Fix the date on the gauge card (`ui/app.py` line 202): `strftime("%a %b %-d")` crashes
       on Windows. Build the day number with `.day` instead.
 - [ ] Deploy to Streamlit Community Cloud: share.streamlit.io → Create app → this repo,
       branch `main`, main file `ui/app.py`. Then check that live weather loads there, and
@@ -133,6 +170,10 @@ Weeks run Monday to Sunday, Hawaiʻi time. Items already done on `main` are tick
 - [x] Clamp inputs to the training range and cap the displayed risk at 99%.
 - [ ] Compare live forecast weather with the historical weather the model trained on, for a
       few recent days at 2–3 beaches. If rain totals differ a lot, add it to the app's limits.
+- [ ] 3-day outlook, forecast side: `forecast_days=4`, risk for each of the 4 days, and
+      today still used for the gauge, map, and "why" bars (new feature 1).
+- [ ] 3-day outlook, app side: the row of 4 days under the gauge card, with days 2–3
+      marked "less certain" (new feature 1).
 
 **Person B — app & product**
 - [x] Gauge with lower risk / caution / likely unsafe labels (30% / 60%).
@@ -146,18 +187,33 @@ Weeks run Monday to Sunday, Hawaiʻi time. Items already done on `main` are tick
 - [ ] "About the team" section. The nav's "About" and the footer's "About the team" links
       still land on the footer with nothing behind them. Add our names, school, and why we
       built it; the same text helps the CAC "inspiration" answer.
+- [ ] "What should I do?" advice for each band, worded from the DOH Clean Water Branch site
+      (new feature 2).
+- [ ] "Try this beach instead": nearest lower-risk beach and its distance, with Magic Island
+      counted as one beach (new feature 2).
 
 ### Week 3 · Oct 12 – 18 · Polish the app and start the story
 **Person A — model & data**
 - [x] "How it works" chart, 80% versus 4%: done as section 04, "How well it works", with a
       "Show as table" option.
 - [ ] Email the Surfrider Oʻahu BWTF coordinator. It helps the CAC "inspiration" answer.
+- [ ] Experiment: in `scripts/build_dataset.py`, split `rain_prev_7days` into rain in the
+      last 2 days and rain 3–7 days ago, then re-run Part 8. Keep it only if the 2025–26 AUC
+      and "caught at 30%" are at least as good. If kept, update `features_from_daily` and the
+      input table above, and commit `data/processed/` and `models/model.json` together.
+      Either way, write down the result.
 
 **Person B — app & product**
 - [ ] Check the layout on a phone.
+- [ ] Shareable beach link: `?beach=...` opens that beach, plus the "add to Home Screen"
+      line (new feature 3).
+- [ ] Only if features 1–3 are done by Wed, Oct 14: honu mascot (new feature 4).
 - [x] Clear message when the weather fetch fails (falls back to a typical day), and an
       hourly weather cache.
 - [ ] README with screenshots, the live URL, and the AI disclosure.
+
+**Together**
+- [ ] Feature freeze Sunday, Oct 18: after that, bug fixes and the video only.
 
 ### Week 4 · Oct 19 – 23 · Record the video and submit on Friday
 **Person A — model & data**
@@ -181,7 +237,7 @@ Weeks run Monday to Sunday, Hawaiʻi time. Items already done on `main` are tick
 | Time | Beat | What to show |
 |---|---|---|
 | 0:00 – 0:20 | Hook | Bacteria tests happen every two weeks. Rain happens any day. Most days, nobody knows if the water is safe. |
-| 0:20 – 1:50 | Live demo | Pick a beach, read the gauge and the "why" bars, then use "Try different weather" to show a beach turning red. |
+| 0:20 – 1:50 | Live demo | One real decision on a phone: "Going to Kailua on Saturday, is it OK?" Open the shared link, read the gauge, the 3-day outlook, and the "why" bars. Then show a red beach with its "What should I do?" advice and the safer beach it suggests (use "Try different weather" if the forecast is all dry). |
 | 1:50 – 2:30 | How it works | Surfrider samples, Open-Meteo weather, our own gradient descent. Show section 04: 80% caught versus 4%. |
 | 2:30 – 3:00 | Limits and tools | Biweekly sampling, a small dataset, not an official advisory. Name Python, pandas, Streamlit, and the AI tools we used. |
 
