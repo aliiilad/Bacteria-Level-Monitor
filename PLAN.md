@@ -140,7 +140,7 @@ must be done by **Sunday, Oct 18**; after that we only fix bugs and make the vid
      someone else; an unsubscribe link in every email; API keys only in Streamlit and GitHub
      secret settings, never in the repo; wording like "Forecast: high bacteria risk at
      Kailua today" plus "not an official advisory", never "the water is unsafe".
-   - Not ntfy push notifications: not everyone has the ntfy app.
+  5. **Fix ml model**: Logistic regression compare to current linear regression? 
 
 ## App architecture and user data (decided Sep 30)
 - **We stay on Streamlit.** Full stack (separate JavaScript front end, API server, and
