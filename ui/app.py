@@ -52,11 +52,15 @@ def load_model():
 
 @st.cache_data(ttl=3600, show_spinner="Getting today's weather…")
 def fetch_live_features(site_points):
-    """({date}, {site_id: features}) from today's forecast. Errors are not cached, so a
-    failed fetch is retried on the next rerun."""
+    """[(date, {site_id: features}), ...] from the forecast for today and the next 3 days,
+    today first. Errors are not cached, so a failed fetch is retried on the next rerun."""
     daily = risk_model.fetch_daily_weather([pt for _, pt in site_points])
-    today = next(iter(daily.values()))["time"][-1]
-    return today, {site: risk_model.features_from_daily(daily[pt]) for site, pt in site_points}
+    days = []
+    for days_ahead in range(1 + risk_model.OUTLOOK_DAYS):
+        cut = {pt: risk_model.daily_until(d, days_ahead) for pt, d in daily.items()}
+        day = next(iter(cut.values()))["time"][-1]
+        days.append((day, {site: risk_model.features_from_daily(cut[pt]) for site, pt in site_points}))
+    return days
 
 
 def band(p):
@@ -140,9 +144,10 @@ beaches = load_beaches()
 model = load_model()
 site_points = tuple((str(s), tuple(model["weather_points"][str(s)])) for s in beaches.site_id)
 try:
-    forecast_date, live = fetch_live_features(site_points)
+    forecast = fetch_live_features(site_points)
+    forecast_date, live = forecast[0]  # today: the gauge, map, and "why" bars use this day
 except Exception:  # network down, API change, missing values: fall back to a typical day
-    forecast_date, live = None, None
+    forecast, forecast_date, live = None, None, None
 test = model["test"]
 # Today's risk at every beach, worked out once: the map and the safer-beach pick both use it.
 typical = risk_model.typical_features(model)
@@ -213,6 +218,21 @@ with st.container(key="sec-check"):
 
     # Feature 1 (Person A): 3-day outlook row.
     outlook_html = ""
+    if forecast and what_if:
+        outlook_html = ('<div class="outlook"><div class="outlook-note">Turn off "Try different weather" '
+                        'to see the 3-day outlook.</div></div>')
+    elif forecast:
+        days = ""
+        for days_ahead, (day, day_features) in enumerate(forecast):
+            p = risk_model.predict(model, site, day_features[site])[0]
+            name = "Today" if days_ahead == 0 else f"{date.fromisoformat(day):%a}"
+            unsure = days_ahead >= 2  # forecast rain gets less reliable further out
+            days += f"""<div class="day{' unsure' if unsure else ''}"><span>{name}{'*' if unsure else ''}</span>
+                <b style="color:{risk_color(p)}">{p:.0%}</b>
+                <i><em style="width:{p * 100:.0f}%;background:{risk_color(p)}"></em></i></div>"""
+        outlook_html = f"""<div class="outlook"><div class="outlook-head">3-day outlook</div>
+            <div class="days">{days}</div>
+            <div class="outlook-note">* Less certain: forecast rain gets less reliable further out.</div></div>"""
 
     # Feature 2 (Person B): "What should I do?" + safer beach.
     advice_html = ""
