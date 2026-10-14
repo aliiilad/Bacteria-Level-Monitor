@@ -102,12 +102,18 @@
 .verdict { text-align: center; font-size: 15px; letter-spacing: 0.3em; font-weight: 700; margin-top: 8px; }
 .card .fine { font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-top: 28px; }
 
+/* ---------- 01 · 3-day outlook (feature 1, Person A) ---------- */
+/* Styles for outlook_html go here, phone-width rules too (in their own @media). */
+
 .factor { margin-bottom: 26px; }
 .factor .row { display: flex; justify-content: space-between; font-size: 15px; margin-bottom: 8px; }
 .factor .row b { font-weight: 600; }
 .factor .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
 .factor .bar span { display: block; height: 100%; border-radius: 3px; }
 .factor .why { font-size: 13px; color: var(--text-muted); margin-top: 6px; }
+
+/* ---------- 01 · What should I do? + safer beach (feature 2, Person B) ---------- */
+/* Styles for advice_html go here, phone-width rules too (in their own @media). */
 
 /* ---------- Widgets restyled to match ---------- */
 [data-testid="stWidgetLabel"] p { color: var(--text-muted) !important; font-size: 13px !important;
@@ -129,6 +135,9 @@
 .site-footer h4 { color: var(--gold); font-family: var(--sans); font-size: 15px; font-weight: 700; margin: 0 0 18px; padding: 0; }
 .site-footer a { display: block; color: var(--text) !important; text-decoration: none; margin-bottom: 12px; }
 .site-footer .copy { grid-column: 1 / -1; font-size: 13px; color: var(--text-muted); }
+
+/* ---------- About the team (Person A) ---------- */
+/* Styles for the About section go here, phone-width rules too (in their own @media). */
 
 /* ---------- Phone widths ---------- */
 @media (max-width: 760px) {

@@ -209,8 +209,14 @@ with st.container(key="sec-check"):
         when = f"{d:%a %b} {d.day}"
 
     # Slots in the gauge card, one per feature, so both can be built at the same time.
-    outlook_html = ""  # feature 1 (Person A): 3-day outlook row
-    advice_html = ""   # feature 2 (Person B): "What should I do?" + safer beach
+    # Only change the lines under your own comment; git can't merge edits to touching lines.
+
+    # Feature 1 (Person A): 3-day outlook row.
+    outlook_html = ""
+
+    # Feature 2 (Person B): "What should I do?" + safer beach.
+    advice_html = ""
+
     with card_col:
         html(
             f"""<div class="card">
