@@ -2,9 +2,14 @@
 
 Working plan for the Congressional App Challenge entry. Project context lives in
 [`CLAUDE.md`](./CLAUDE.md); this file tracks **what we're doing, who's doing it, and in what
-order.** The model is done, and the app runs locally with live weather, its test results, and
-a limits section. What's left is deploying it, a few small fixes, three new features (see "New features" below), rewriting the README, an
-"About the team" section, and a 3-minute video.
+order.** The model is done, and the app is live at <https://safebeachesoahu.streamlit.app>
+with live weather, its test results, and a limits section. What's left is a few small fixes,
+three new features (see "New features" below), rewriting the README, an "About the team"
+section, and a 3-minute video.
+
+**App first, model later (decided Oct 14).** Until the Oct 18 freeze we both work on the app,
+on separate branches at the same time (see "Working in parallel" below). Model improvements
+wait (see "Model later").
 
 **Person A** owns the model and data. **Person B** owns the app. The same plan is also on a
 shared tick list: <https://claude.ai/artifact/JPhJCuFypuYq3ujDb6uiAe> (private; the owner
@@ -39,11 +44,11 @@ the end of each week.
 - [x] Streamlit app "Kai Check" (`ui/app.py`): live Open-Meteo weather, risk gauge, "why"
       bars, what-if sliders, map, "How well it works" chart (section 04), "Know the limits"
       cards, and a fallback when the weather fetch fails. Runs with no errors.
-- [ ] Deployed to a public URL.
+- [x] Deployed to a public URL: <https://safebeachesoahu.streamlit.app> (Oct 14).
 - [ ] Small fixes: the Windows date bug, the deprecated Streamlit argument, and the misplaced
       comment are fixed; the Magic Island pin is left (week 1).
 - [ ] New features: 3-day outlook, "What should I do?" with a safer-beach suggestion, and a
-      shareable beach link (weeks 2–3). Email alerts only if there's time.
+      shareable beach link (weeks 2–3). Email alerts are dropped (Oct 14).
 - [ ] README and CLAUDE.md still describe the old plan.
 - [ ] "About the team" section.
 - [ ] Video and submission.
@@ -93,8 +98,9 @@ risk = 1 − Φ((ln 131 − ŷ) / σ),  σ ≈ 1.42                  chance of m
   caches it for an hour.
 
 ## New features (decided Sep 30)
-Three features that turn the gauge into a decision, plus one if there's time. All of them
-must be done by **Sunday, Oct 18**; after that we only fix bugs and make the video.
+Three features that turn the gauge into a decision. All of them must be done by
+**Sunday, Oct 18**; after that we only fix bugs and make the video. Owners were updated on
+Oct 14 so we can build them at the same time (see "Working in parallel" below).
 
 1. **3-day outlook** (Person A). A row under the gauge card: today plus the next 3 days,
    each with its risk % and color, e.g. "Tue 38% · Wed 36% · Thu 71%".
@@ -118,17 +124,21 @@ must be done by **Sunday, Oct 18**; after that we only fix bugs and make the vid
      map, and the haversine formula on the lat/lon in `beaches.csv` for straight-line
      distance. We have no driving times, so don't claim minutes.
    - The two Magic Island points are the same beach: never suggest one for the other.
+     Define that rule once in `ui/recommend.py`; the map imports it to draw Magic Island as
+     one pin, so Person B does the pin too.
    - If no beach is lower risk today, say so.
    - Put the logic (distance, safer-beach pick, advice per band) in a new plain-Python file,
      `ui/recommend.py`, with no Streamlit in it. `ui/app.py` only calls it and draws the
      result. See "App architecture and user data" below.
-3. **Shareable beach link** (Person B). `?beach=kailua` opens the app on that beach.
+3. **Shareable beach link** (Person A since Oct 14). `?beach=kailua` opens the app on that
+   beach.
    - Read `st.query_params` on load to pick the beach; update it when the beach changes.
    - Give each beach a short name for the link (a dict in `ui/app.py`).
    - One line under the picker: "Bookmark this page or add it to your Home Screen."
-4. **Email alerts, only if there's time** (Person B). Subscribe with an email and a beach;
-   get an email on mornings when that beach is likely unsafe (over 60%). Start it only if
-   1–3 are done by **Saturday, Oct 10**. It must still make the Oct 18 freeze.
+4. **Email alerts: dropped (Oct 14).** The rule was to start only if 1–3 were done by
+   Saturday, Oct 10, and they weren't. The spec stays here in case we pick it up after we
+   submit. Subscribe with an email and a beach; get an email on mornings when that beach is
+   likely unsafe (over 60%).
    - **Subscribe form** in `ui/app.py`: email + beach + "Alert me".
    - **Database:** one free Supabase table: email, beach, confirmed yes/no, and a random
      unsubscribe code. No names or anything else.
@@ -140,7 +150,85 @@ must be done by **Sunday, Oct 18**; after that we only fix bugs and make the vid
      someone else; an unsubscribe link in every email; API keys only in Streamlit and GitHub
      secret settings, never in the repo; wording like "Forecast: high bacteria risk at
      Kailua today" plus "not an official advisory", never "the water is unsafe".
-  5. **Fix ml model**: Logistic regression compare to current linear regression? 
+5. **Model improvements** (e.g. logistic regression compared with the current linear
+   regression): after the app features. See "Model later" below.
+
+## Working in parallel (decided Oct 14)
+App first, model later. From Oct 14 to the Oct 18 freeze we both build app features at the
+same time, each on our own branch. Live app: <https://safebeachesoahu.streamlit.app>.
+
+**Who does what**
+- **Person A:** 3-day outlook, both halves (feature 1; it starts in `ui/risk_model.py`), the
+  shareable beach link (feature 3), and the "About the team" section.
+- **Person B:** "What should I do?" + safer beach (feature 2), Magic Island as one pin (same
+  "one beach" rule as feature 2), and pinning `ui/requirements.txt`.
+
+**Step 0: one setup commit on `main` before we split up.** One of us writes it, the other
+pulls it. Without it, features 1 and 2 edit the same lines of the gauge card and git can't
+merge them.
+1. Two empty slots in the gauge card (`ui/app.py`, section 01). Each person fills only their
+   own:
+   ```python
+   outlook_html = ""  # feature 1, Person A
+   advice_html = ""   # feature 2, Person B
+   ...
+   <div class="verdict" style="color:{color}">{verdict}</div>{advice_html}{outlook_html}
+   ```
+   Keep the slots on the same line as a tag, like `{factors}` in section 02. `html()` strips
+   every line, so an empty slot on its own line becomes a blank line, and Markdown ends a raw
+   HTML block at a blank line.
+2. Today's risk for every beach, worked out once right after `test = model["test"]`:
+   ```python
+   typical = risk_model.typical_features(model)
+   today_risks = {str(s): risk_model.predict(model, s, live[str(s)] if live else typical)[0]
+                  for s in beaches.site_id}
+   ```
+   Feature 2 needs these numbers in section 01, and the safer-beach pick must match the map.
+   The map loop (section 03) reads from `today_risks` too, but keeps using `prob` for the
+   selected beach so the "Try different weather" sliders still move its dot.
+
+**What each piece touches** (`ui/app.py` unless noted)
+
+| Work | Where | Overlaps with |
+|---|---|---|
+| 1. 3-day outlook | `fetch_daily_weather` in `ui/risk_model.py`, `fetch_live_features`, `outlook_html` | nothing after step 0 |
+| 2. Advice + safer beach | new `ui/recommend.py`, `advice_html`, `today_risks` | Magic Island pin (same person) |
+| 3. `?beach=` link | beach picker in section 01 + a short-name dict | nothing |
+| Magic Island as one pin | map loop in section 03 | feature 2 (same person) |
+| About the team | footer | nothing |
+| Pin requirements | `ui/requirements.txt` | nothing |
+
+**How we merge**
+- One branch per feature, made from `main` after step 0.
+- Before opening a PR: `git pull origin main`, then `streamlit run ui/app.py` and click
+  through the page.
+- Merge the smallest first (the beach link), then whatever is ready.
+- CSS: each feature adds its own block to `ui/style.css` under a
+  `/* ---------- name ---------- */` header. If git shows a conflict at the end of the file,
+  keep both blocks.
+- After each merge, check the live app: Streamlit Community Cloud redeploys from `main`.
+
+## Model later (decided Oct 14)
+The app keeps working through a model change as long as these three things stay the same:
+- `predict(model, site_id, features)` in `ui/risk_model.py` still returns `(risk, pushes)`.
+- `features_from_daily` still returns the same four inputs (`rain_prev_7days`,
+  `days_since_rain`, `temp_mean`, `wind_max`).
+- `models/model.json` still has the keys the app reads: `features` (with `min`/`max`),
+  `site_offsets`, `weather_points`, `train_years`, `n_train`, and `test` (`years`, `n`,
+  `n_unsafe`, `auc`, `flag_at_30`, `comparison`).
+
+What that means for the candidates:
+- **Logistic regression instead of linear regression:** can keep all three; only the inside
+  of `predict` changes.
+- **Week 3 rain experiment** (split `rain_prev_7days` in two): renames the inputs, so
+  `INPUTS`, `FACTOR_LABELS`, and `weather_line` in `ui/app.py` change too, along with the
+  input table in "How the app model works".
+
+**When:** by the freeze rule, a model change lands either by Sun, Oct 18 (only if the app
+features finish early) or after we submit. Not during video week: section 04 and the video's
+"80% vs 4%" come from `model.json`, so a late model change means re-recording. Any model
+change re-runs `python scripts/build_dataset.py` and updates the numbers in "Where the model
+stands" and the README.
 
 ## App architecture and user data (decided Sep 30)
 - **We stay on Streamlit.** Full stack (separate JavaScript front end, API server, and
@@ -154,8 +242,9 @@ must be done by **Sunday, Oct 18**; after that we only fix bugs and make the vid
 - **User data:** the app stores none. `beaches.csv` and `model.json` are app data, the same
   for everyone, in the repo. "Remember my beach" is the `?beach=` link: it survives a refresh,
   and bookmarking or sharing it is how people save or share a check. No accounts.
-- **The only exception is email alerts (feature 4):** email address + beach, nothing else,
-  confirmed and unsubscribable. Say this plainly in the app and the README.
+- **The only exception would be email alerts (feature 4, dropped for now):** email address +
+  beach, nothing else, confirmed and unsubscribable. If we add them after submitting, say this
+  plainly in the app and the README.
 - **Full stack is only worth it** if we later need things Streamlit can't do, like accounts
   that follow a user across devices. Not before the CAC deadline.
 
@@ -182,9 +271,10 @@ Weeks run Monday to Sunday, Hawaiʻi time. Items already done on `main` are tick
       Streamlit prints a warning that the old argument is being removed.
 - [x] Fix the date on the gauge card (`ui/app.py` line 202): `strftime("%a %b %-d")` crashes
       on Windows. Build the day number with `.day` instead.
-- [ ] Deploy to Streamlit Community Cloud: share.streamlit.io → Create app → this repo,
-      branch `main`, main file `ui/app.py`. Then check that live weather loads there, and
-      share the public URL.
+- [x] Deploy to Streamlit Community Cloud: share.streamlit.io → Create app → this repo,
+      branch `main`, main file `ui/app.py`. Live at <https://safebeachesoahu.streamlit.app>.
+- [ ] Check that live weather loads on the deployed app (the caption under the beach picker
+      says "Today's forecast from Open-Meteo", not "Live weather is unavailable").
 - [ ] Show the two Magic Island sampling points as one pin. They still draw as two
       overlapping dots.
 
@@ -216,33 +306,48 @@ Weeks run Monday to Sunday, Hawaiʻi time. Items already done on `main` are tick
 - [x] Limitations section: four "Know the limits" cards (beach does most of the work, few
       storm-day samples, stand-in baseline, not an official advisory). The footer's
       "Limitations" link now lands on it.
-- [ ] "About the team" section. The nav's "About" and the footer's "About the team" links
-      still land on the footer with nothing behind them. Add our names, school, and why we
-      built it; the same text helps the CAC "inspiration" answer.
 - [ ] "What should I do?" advice for each band, worded from the DOH Clean Water Branch site
       (new feature 2).
 - [ ] "Try this beach instead": nearest lower-risk beach and its distance, with Magic Island
       counted as one beach (new feature 2).
 
 ### Week 3 · Oct 12 – 18 · Polish the app and start the story
-**Person A — model & data**
+App first, model later: this week we both build app features (see "Working in parallel").
+
+**Together**
+- [ ] Step 0, before splitting up: one setup commit on `main` with the two gauge-card slots
+      and `today_risks` (see "Working in parallel"). The other person pulls it before
+      starting.
+
+**Person A — app features this week (model later)**
 - [x] "How it works" chart, 80% versus 4%: done as section 04, "How well it works", with a
       "Show as table" option.
+- 3-day outlook, both halves: the two week 2 items above (new feature 1).
+- [ ] Shareable beach link: `?beach=...` opens that beach, plus the "add to Home Screen"
+      line (new feature 3; moved from Person B on Oct 14).
+- [ ] "About the team" section (moved from Person B on Oct 14). The nav's "About" and the
+      footer's "About the team" links still land on the footer with nothing behind them. Add
+      our names, school, and why we built it; the same text helps the CAC "inspiration"
+      answer.
 - [ ] Email the Surfrider Oʻahu BWTF coordinator. It helps the CAC "inspiration" answer.
-- [ ] Experiment: in `scripts/build_dataset.py`, split `rain_prev_7days` into rain in the
-      last 2 days and rain 3–7 days ago, then re-run Part 8. Keep it only if the 2025–26 AUC
-      and "caught at 30%" are at least as good. If kept, update `features_from_daily` and the
-      input table above, and commit `data/processed/` and `models/model.json` together.
-      Either way, write down the result.
+- [ ] Later, see "Model later": in `scripts/build_dataset.py`, split `rain_prev_7days` into
+      rain in the last 2 days and rain 3–7 days ago, then re-run Part 8. Keep it only if the
+      2025–26 AUC and "caught at 30%" are at least as good. If kept, update
+      `features_from_daily`, `INPUTS`, `FACTOR_LABELS`, and `weather_line` in `ui/app.py`,
+      and the input table above, and commit `data/processed/` and `models/model.json`
+      together. Either way, write down the result.
 
 **Person B — app & product**
-- [ ] Check the layout on a phone.
-- [ ] Shareable beach link: `?beach=...` opens that beach, plus the "add to Home Screen"
-      line (new feature 3).
-- [ ] Only if features 1–3 are done by Sat, Oct 10: email alerts (new feature 4).
+- "What should I do?" + safer beach: the two week 2 items above (new feature 2).
+- Magic Island as one pin: the week 1 item above, using the same "one beach" rule as the
+  safer-beach pick.
+- Pin exact versions in `ui/requirements.txt`: the week 1 item above.
+- [ ] Check the layout on a phone, on the live URL.
 - [x] Clear message when the weather fetch fails (falls back to a typical day), and an
       hourly weather cache.
 - [ ] README with screenshots, the live URL, and the AI disclosure.
+- Email alerts (new feature 4): dropped on Oct 14, since features 1–3 weren't done by
+  Sat, Oct 10.
 
 **Together**
 - [ ] Feature freeze Sunday, Oct 18: after that, bug fixes and the video only.
