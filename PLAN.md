@@ -315,7 +315,7 @@ Weeks run Monday to Sunday, Hawaiʻi time. Items already done on `main` are tick
 App first, model later: this week we both build app features (see "Working in parallel").
 
 **Together**
-- [ ] Step 0, before splitting up: one setup commit on `main` with the two gauge-card slots
+- [x] Step 0, before splitting up: one setup commit on `main` with the two gauge-card slots
       and `today_risks` (see "Working in parallel"). The other person pulls it before
       starting.
 
