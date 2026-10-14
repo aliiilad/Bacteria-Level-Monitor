@@ -21,6 +21,7 @@ FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 DAILY_VARS = ["rain_sum", "temperature_2m_mean", "wind_speed_10m_max"]
 DRY_DAY_MM = 1.0
 MAX_RISK = 0.99
+OUTLOOK_DAYS = 3  # days after today in the 3-day outlook
 
 
 def load_model(path=MODEL_PATH):
@@ -28,8 +29,9 @@ def load_model(path=MODEL_PATH):
 
 
 def fetch_daily_weather(points):
-    """Fetch the last 30 days + today for each (lat, lon) in one Open-Meteo request.
-    Returns {(lat, lon): daily dict}, where each daily list ends with today (Honolulu time)."""
+    """Fetch the last 30 days, today, and the next 3 days for each (lat, lon) in one Open-Meteo
+    request. Returns {(lat, lon): daily dict}, where each daily list ends 3 days after today
+    (Honolulu time). Use daily_until to cut a list off at today or a later day."""
     points = sorted(set(points))
     resp = requests.get(FORECAST_URL, timeout=10, params={
         "latitude": ",".join(str(lat) for lat, _ in points),
@@ -37,13 +39,20 @@ def fetch_daily_weather(points):
         "daily": ",".join(DAILY_VARS),
         "timezone": "Pacific/Honolulu",
         "past_days": 30,
-        "forecast_days": 1,
+        "forecast_days": 1 + OUTLOOK_DAYS,  # today + the next 3 days
     })
     resp.raise_for_status()
     data = resp.json()
     if isinstance(data, dict):  # one location comes back as an object, several as a list
         data = [data]
     return {pt: loc["daily"] for pt, loc in zip(points, data)}
+
+
+def daily_until(daily, days_ahead):
+    """Cut one location's daily series off after the day `days_ahead` days from today
+    (0 = today), so features_from_daily scores that day."""
+    end = len(daily["time"]) - OUTLOOK_DAYS + days_ahead
+    return {name: values[:end] for name, values in daily.items()}
 
 
 def features_from_daily(daily):

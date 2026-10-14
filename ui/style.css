@@ -103,7 +103,23 @@
 .card .fine { font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-top: 28px; }
 
 /* ---------- 01 · 3-day outlook (feature 1, Person A) ---------- */
-/* Styles for outlook_html go here, phone-width rules too (in their own @media). */
+.outlook { margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--line); }
+.outlook-head { font-size: 13px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--text-muted);
+  margin-bottom: 12px; }
+.outlook .days { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.outlook .day { border: 1px solid var(--line); border-radius: 4px; padding: 10px 10px 12px; text-align: center; }
+.outlook .day.unsure { border-style: dashed; }
+.outlook .day span { display: block; font-size: 13px; font-weight: 600; color: var(--text-muted); }
+.outlook .day b { display: block; font-family: var(--serif); font-weight: 400; font-size: 26px; margin: 4px 0 8px; }
+.outlook .day.unsure b { opacity: 0.75; }
+.outlook .day i { display: block; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.outlook .day em { display: block; height: 100%; border-radius: 2px; }
+.outlook-note { font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-top: 10px; }
+@media (max-width: 760px) {
+  .outlook .days { gap: 6px; }
+  .outlook .day { padding: 8px 4px 10px; }
+  .outlook .day b { font-size: 22px; }
+}
 
 .factor { margin-bottom: 26px; }
 .factor .row { display: flex; justify-content: space-between; font-size: 15px; margin-bottom: 8px; }

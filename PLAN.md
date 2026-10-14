@@ -302,9 +302,9 @@ Weeks run Monday to Sunday, Hawaiʻi time. Items already done on `main` are tick
 - [x] Clamp inputs to the training range and cap the displayed risk at 99%.
 - [ ] Compare live forecast weather with the historical weather the model trained on, for a
       few recent days at 2–3 beaches. If rain totals differ a lot, add it to the app's limits.
-- [ ] 3-day outlook, forecast side: `forecast_days=4`, risk for each of the 4 days, and
+- [x] 3-day outlook, forecast side: `forecast_days=4`, risk for each of the 4 days, and
       today still used for the gauge, map, and "why" bars (new feature 1).
-- [ ] 3-day outlook, app side: the row of 4 days under the gauge card, with days 2–3
+- [x] 3-day outlook, app side: the row of 4 days under the gauge card, with days 2–3
       marked "less certain" (new feature 1).
 
 **Person B — app & product**
