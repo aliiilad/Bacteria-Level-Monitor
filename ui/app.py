@@ -144,6 +144,10 @@ try:
 except Exception:  # network down, API change, missing values: fall back to a typical day
     forecast_date, live = None, None
 test = model["test"]
+# Today's risk at every beach, worked out once: the map and the safer-beach pick both use it.
+typical = risk_model.typical_features(model)
+today_risks = {str(s): risk_model.predict(model, s, live[str(s)] if live else typical)[0]
+               for s in beaches.site_id}
 
 # ------------------------------------------------------------------ Hero
 html(
@@ -182,7 +186,7 @@ with st.container(key="sec-check"):
         beach = st.selectbox("Beach", beaches["beach_name"], index=4)
         row = beaches.set_index("beach_name").loc[beach]
         site = str(row.site_id)
-        base = live[site] if live else risk_model.typical_features(model)
+        base = live[site] if live else typical
         if live:
             st.caption(f"Today's forecast from Open-Meteo: {weather_line(base)}.")
         else:
@@ -203,14 +207,23 @@ with st.container(key="sec-check"):
     else:
         d = date.fromisoformat(forecast_date)
         when = f"{d:%a %b} {d.day}"
-    
+
+    # Slots in the gauge card, one per feature, so both can be built at the same time.
+    # Only change the lines under your own comment; git can't merge edits to touching lines.
+
+    # Feature 1 (Person A): 3-day outlook row.
+    outlook_html = ""
+
+    # Feature 2 (Person B): "What should I do?" + safer beach.
+    advice_html = ""
+
     with card_col:
         html(
             f"""<div class="card">
               <div class="label">{row.region} Shore · {when}</div>
               <div class="beach">{beach}</div>
               {gauge_svg(prob)}
-              <div class="verdict" style="color:{color}">{verdict}</div>
+              <div class="verdict" style="color:{color}">{verdict}</div>{advice_html}{outlook_html}
               <div class="fine">Historically, {row.n_unsafe} of {row.n_samples} samples here
               ({row.unsafe_pct:.0f}%) were over the limit ({row.first_year}–{row.last_year}).
               <br><br>A forecast from weather, not a lab test. Always follow posted
@@ -266,9 +279,8 @@ with st.container(key="sec-map"):
         rgb = {"LOWER RISK": [95, 211, 184], "CAUTION": [251, 215, 132], "LIKELY UNSAFE": [242, 119, 92]}
         rows = []
         for b in beaches.itertuples():
-            f = live[str(b.site_id)] if live else risk_model.typical_features(model)
-            p = features if b.beach_name == beach else f   # selected beach follows the what-if sliders
-            r, _ = risk_model.predict(model, b.site_id, p)
+            # selected beach follows the what-if sliders
+            r = prob if b.beach_name == beach else today_risks[str(b.site_id)]
             rows.append({"beach_name": b.beach_name, "latitude": b.latitude, "longitude": b.longitude,
                          "risk": f"{r:.0%}", "history": f"{b.unsafe_pct:.0f}",
                          "color": rgb[band(r)[0]], "radius": 1300 if b.beach_name == beach else 800})

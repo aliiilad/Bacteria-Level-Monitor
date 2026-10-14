@@ -166,17 +166,20 @@ same time, each on our own branch. Live app: <https://safebeachesoahu.streamlit.
 **Step 0: one setup commit on `main` before we split up.** One of us writes it, the other
 pulls it. Without it, features 1 and 2 edit the same lines of the gauge card and git can't
 merge them.
-1. Two empty slots in the gauge card (`ui/app.py`, section 01). Each person fills only their
-   own:
+1. Two empty slots in the gauge card (`ui/app.py`, section 01), each under its own comment
+   with a blank line between. Each person only changes the lines under their own comment:
    ```python
-   outlook_html = ""  # feature 1, Person A
-   advice_html = ""   # feature 2, Person B
+   # Feature 1 (Person A): 3-day outlook row.
+   outlook_html = ""
+
+   # Feature 2 (Person B): "What should I do?" + safer beach.
+   advice_html = ""
    ...
    <div class="verdict" style="color:{color}">{verdict}</div>{advice_html}{outlook_html}
    ```
-   Keep the slots on the same line as a tag, like `{factors}` in section 02. `html()` strips
-   every line, so an empty slot on its own line becomes a blank line, and Markdown ends a raw
-   HTML block at a blank line.
+   The blank line matters: git can't merge two branches that change touching lines, so with
+   the slots on back-to-back lines our two branches would conflict (tested Oct 14). Nobody
+   needs to edit the `{advice_html}{outlook_html}` line.
 2. Today's risk for every beach, worked out once right after `test = model["test"]`:
    ```python
    typical = risk_model.typical_features(model)
@@ -186,6 +189,13 @@ merge them.
    Feature 2 needs these numbers in section 01, and the safer-beach pick must match the map.
    The map loop (section 03) reads from `today_risks` too, but keeps using `prob` for the
    selected beach so the "Try different weather" sliders still move its dot.
+3. Three empty sections in `ui/style.css`, in different parts of the file: "01 · 3-day
+   outlook" (after the gauge card styles), "01 · What should I do? + safer beach" (after the
+   "why" bars), and "About the team" (after the footer).
+
+Tested Oct 14 on a scratch copy: a Person A branch (outlook, link, About) and a Person B
+branch (advice, `recommend.py`, Magic Island pin, requirements) merged into `main` with no
+conflicts, in either order.
 
 **What each piece touches** (`ui/app.py` unless noted)
 
@@ -203,9 +213,9 @@ merge them.
 - Before opening a PR: `git pull origin main`, then `streamlit run ui/app.py` and click
   through the page.
 - Merge the smallest first (the beach link), then whatever is ready.
-- CSS: each feature adds its own block to `ui/style.css` under a
-  `/* ---------- name ---------- */` header. If git shows a conflict at the end of the file,
-  keep both blocks.
+- CSS: put your styles in your own section of `ui/style.css` (added in step 0), including
+  phone-width rules in their own `@media` block there, not in the shared "Phone widths"
+  block. If git still shows a conflict, keep both sides.
 - After each merge, check the live app: Streamlit Community Cloud redeploys from `main`.
 
 ## Model later (decided Oct 14)
@@ -315,9 +325,9 @@ Weeks run Monday to Sunday, Hawaiʻi time. Items already done on `main` are tick
 App first, model later: this week we both build app features (see "Working in parallel").
 
 **Together**
-- [ ] Step 0, before splitting up: one setup commit on `main` with the two gauge-card slots
-      and `today_risks` (see "Working in parallel"). The other person pulls it before
-      starting.
+- [x] Step 0, before splitting up: setup on `main` with the two gauge-card slots,
+      `today_risks`, and the three CSS sections (see "Working in parallel"). Both of us pull
+      `main` before starting.
 
 **Person A — app features this week (model later)**
 - [x] "How it works" chart, 80% versus 4%: done as section 04, "How well it works", with a
