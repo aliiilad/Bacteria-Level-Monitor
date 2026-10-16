@@ -237,6 +237,22 @@ with st.container(key="sec-check"):
 
     # Feature 2 (Person B): "What should I do?" + safer beach.
     advice_html = ""
+    tips = "".join(f"<li>{tip}</li>" for tip in recommend.ADVICE[verdict])
+    if verdict == "LOWER RISK":
+        suggestion = ""
+    elif what_if:  # the sliders change only this beach, so don't compare made-up weather to real
+        suggestion = ('<div class="safer-note">Turn off "Try different weather" to see a safer beach '
+                      "on today's real forecast.</div>")
+    elif not live:
+        suggestion = '<div class="safer-note">Safer-beach suggestions need live weather.</div>'
+    else:
+        alt = recommend.safer_beach(site, beaches.to_dict("records"), today_risks, below=CAUTION_AT)
+        suggestion = (f"""<div class="safer"><span>Nearest lower-risk beach today</span>
+            <b>{alt['beach_name']}</b> · <b style="color:{risk_color(alt['risk'])}">{alt['risk']:.0%}</b>
+            · {alt['km']:.0f} km away (straight line)</div>""" if alt else
+                      '<div class="safer-note">No beach we track is lower risk today.</div>')
+    advice_html = f"""<div class="advice"><div class="advice-head">What should I do?</div>
+        <ul>{tips}</ul>{suggestion}</div>"""
 
     with card_col:
         html(

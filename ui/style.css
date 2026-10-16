@@ -129,7 +129,20 @@
 .factor .why { font-size: 13px; color: var(--text-muted); margin-top: 6px; }
 
 /* ---------- 01 · What should I do? + safer beach (feature 2, Person B) ---------- */
-/* Styles for advice_html go here, phone-width rules too (in their own @media). */
+.advice { margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--line); }
+.advice-head { font-size: 13px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--text-muted);
+  margin-bottom: 12px; }
+.advice ul { margin: 0; padding-left: 18px; }
+.advice li { font-size: 15px; line-height: 1.55; margin-bottom: 6px; color: var(--text); }
+.advice .safer { margin-top: 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 4px;
+  font-size: 15px; line-height: 1.5; }
+.advice .safer span { display: block; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--text-muted); margin-bottom: 4px; }
+.advice .safer b { font-weight: 600; }
+.advice .safer-note { margin-top: 14px; font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+@media (max-width: 760px) {
+  .advice li, .advice .safer { font-size: 14px; }
+}
 
 /* ---------- Widgets restyled to match ---------- */
 [data-testid="stWidgetLabel"] p { color: var(--text-muted) !important; font-size: 13px !important;

@@ -275,7 +275,7 @@ Weeks run Monday to Sunday, Hawaiʻi time. Items already done on `main` are tick
 
 **Person B — app & product**
 - [x] Streamlit app with map and gauge (`ui/app.py`), with `ui/requirements.txt`.
-- [ ] Pin exact versions in `ui/requirements.txt` (the ones that work on your laptop,
+- [x] Pin exact versions in `ui/requirements.txt` (the ones that work on your laptop,
       from `pip freeze`), so the deployed app installs the same Streamlit you tested.
 - [x] Replace `use_container_width=True` with `width="stretch"` in `ui/app.py` (line 313).
       Streamlit prints a warning that the old argument is being removed.
@@ -285,8 +285,8 @@ Weeks run Monday to Sunday, Hawaiʻi time. Items already done on `main` are tick
       branch `main`, main file `ui/app.py`. Live at <https://safebeachesoahu.streamlit.app>.
 - [ ] Check that live weather loads on the deployed app (the caption under the beach picker
       says "Today's forecast from Open-Meteo", not "Live weather is unavailable").
-- [ ] Show the two Magic Island sampling points as one pin. They still draw as two
-      overlapping dots.
+- [x] Show the two Magic Island sampling points as one pin. The pin follows the point the
+      user picked, otherwise the higher risk of the two; its tooltip lists both.
 
 **Together**
 - [ ] Rewrite `README.md` and update `CLAUDE.md` to describe what we actually built. The
@@ -316,10 +316,11 @@ Weeks run Monday to Sunday, Hawaiʻi time. Items already done on `main` are tick
 - [x] Limitations section: four "Know the limits" cards (beach does most of the work, few
       storm-day samples, stand-in baseline, not an official advisory). The footer's
       "Limitations" link now lands on it.
-- [ ] "What should I do?" advice for each band, worded from the DOH Clean Water Branch site
-      (new feature 2).
-- [ ] "Try this beach instead": nearest lower-risk beach and its distance, with Magic Island
-      counted as one beach (new feature 2).
+- [x] "What should I do?" advice for each band, worded from the DOH Clean Water Branch site
+      (new feature 2). Text lives in `ADVICE` in `ui/recommend.py`.
+- [x] "Try this beach instead": nearest lower-risk beach and its distance, with Magic Island
+      counted as one beach (new feature 2). Only beaches under 30% count, and it's hidden in
+      what-if mode and when live weather is down.
 
 ### Week 3 · Oct 12 – 18 · Polish the app and start the story
 App first, model later: this week we both build app features (see "Working in parallel").
