@@ -140,8 +140,27 @@
   color: var(--text-muted); margin-bottom: 4px; }
 .advice .safer b { font-weight: 600; }
 .advice .safer-note { margin-top: 14px; font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+.better { margin-top: 24px; padding: 20px 22px; border-radius: 6px; background: var(--gold); color: var(--bg); }
+.better-head { font-size: 12px; font-weight: 700; letter-spacing: 0.25em; text-transform: uppercase; }
+.better-row { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-top: 8px;
+  font-family: var(--serif); font-size: 28px; line-height: 1.15; }
+.better-meta { margin-top: 6px; font-size: 15px; }
+.st-key-better-btn button { margin-top: 10px; min-height: 48px; }
+.st-key-better-btn button, .st-key-better-btn button p { color: var(--bg) !important; font-weight: 700; font-size: 16px; }
+[class*="st-key-sec-swim"] { padding-top: 0 !important; }
+.swim-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap;
+  margin-bottom: 18px; }
+.swim-title { font-family: var(--serif); font-size: 36px; line-height: 1.2; color: var(--text); }
+.swim-head span { color: var(--text-muted); font-size: 14px; }
+.swim-card { background: var(--bg-raised); border: 1px solid var(--line); border-radius: 6px; padding: 22px 24px; }
+.swim-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  font-family: var(--serif); font-size: 24px; }
+.swim-row b { font-family: var(--sans); font-size: 22px; font-weight: 600; }
+.swim-meta { margin-top: 8px; color: var(--text-muted); font-size: 14px; }
 @media (max-width: 760px) {
   .advice li, .advice .safer { font-size: 14px; }
+  .better-row { font-size: 24px; }
+  .swim-title { font-size: 28px; }
 }
 
 /* ---------- Widgets restyled to match ---------- */

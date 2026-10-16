@@ -45,22 +45,34 @@ ADVICE = {
 }
 
 
-def safer_beach(site, beaches, risks, below):
-    """The nearest beach whose risk today is under `below`, or None if there isn't one.
+def safer_beaches(site, beaches, risks, below, limit=3):
+    """Beaches whose risk today is under `below`, nearest to `site` first (at most `limit`).
 
     site    : the selected beach's site id
-    beaches : rows with site_id, beach_name, latitude, longitude (e.g. beaches.csv)
+    beaches : rows with site_id, beach_name, region, latitude, longitude (e.g. beaches.csv)
     risks   : {site_id: today's risk} for every beach (the same numbers as the map)
     below   : only beaches under this risk count as safer (the "lower risk" band)
-    Returns {"site_id", "beach_name", "risk", "km"}. Points at the same beach never count.
+    Each item is {"site_id", "beach_name", "region", "risk", "km"}. Points at the same beach as
+    `site` never count, and only one point per beach is listed.
     """
     here = next(b for b in beaches if str(b["site_id"]) == str(site))
-    best = None
+    found = []
     for b in beaches:
         sid = str(b["site_id"])
         if same_beach(sid, site) or risks[sid] >= below:
             continue
         km = distance_km(here["latitude"], here["longitude"], b["latitude"], b["longitude"])
-        if best is None or km < best["km"]:
-            best = {"site_id": sid, "beach_name": b["beach_name"], "risk": risks[sid], "km": km}
-    return best
+        found.append({"site_id": sid, "beach_name": b["beach_name"], "region": b.get("region", ""),
+                      "risk": risks[sid], "km": km})
+    found.sort(key=lambda b: b["km"])
+    unique = []
+    for b in found:   # e.g. both Magic Island points safer: keep only the nearer one
+        if not any(same_beach(b["site_id"], u["site_id"]) for u in unique):
+            unique.append(b)
+    return unique[:limit]
+
+
+def safer_beach(site, beaches, risks, below):
+    """The nearest beach whose risk today is under `below`, or None if there isn't one."""
+    found = safer_beaches(site, beaches, risks, below, limit=1)
+    return found[0] if found else None
