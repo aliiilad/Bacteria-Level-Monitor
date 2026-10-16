@@ -15,6 +15,7 @@ import pandas as pd
 import pydeck as pdk
 import streamlit as st
 
+import recommend
 import risk_model
 
 APP_DIR = Path(__file__).parent
@@ -281,9 +282,29 @@ with st.container(key="sec-map"):
         for b in beaches.itertuples():
             # selected beach follows the what-if sliders
             r = prob if b.beach_name == beach else today_risks[str(b.site_id)]
-            rows.append({"beach_name": b.beach_name, "latitude": b.latitude, "longitude": b.longitude,
-                         "risk": f"{r:.0%}", "history": f"{b.unsafe_pct:.0f}",
-                         "color": rgb[band(r)[0]], "radius": 1300 if b.beach_name == beach else 800})
+            rows.append({"site_id": str(b.site_id), "beach_name": b.beach_name, "latitude": b.latitude,
+                         "longitude": b.longitude, "r": r, "risk": f"{r:.0%}",
+                         "history": f"{b.unsafe_pct:.0f}", "n": b.n_samples, "n_unsafe": b.n_unsafe})
+        # Sampling points at the same beach (Magic Island) become one pin. The pin follows the
+        # point the user picked; otherwise it shows the higher (worse) risk of the two.
+        for group in recommend.SAME_BEACH:
+            members = [x for x in rows if x["site_id"] in group]
+            if len(members) < 2:
+                continue
+            picked = [x for x in members if x["site_id"] == site]
+            shown = picked[0] if picked else max(members, key=lambda x: x["r"])
+            short = lambda name: name.split(" (")[0].split(" – ")[-1]   # "Bowls", "Canoe Launch"
+            rows = [x for x in rows if x["site_id"] not in group] + [{
+                **shown,
+                "beach_name": members[0]["beach_name"].split(" – ")[0] + " (Ala Moana)",
+                "latitude": sum(x["latitude"] for x in members) / len(members),
+                "longitude": sum(x["longitude"] for x in members) / len(members),
+                "risk": " · ".join(f"{short(x['beach_name'])} {x['r']:.0%}" for x in members),
+                "history": f"{100 * sum(x['n_unsafe'] for x in members) / sum(x['n'] for x in members):.0f}",
+            }]
+        for x in rows:
+            x["color"] = rgb[band(x["r"])[0]]
+            x["radius"] = 1300 if recommend.same_beach(x["site_id"], site) else 800
         st.pydeck_chart(pdk.Deck(
             map_style="dark",
             initial_view_state=pdk.ViewState(latitude=21.47, longitude=-157.97, zoom=9),
