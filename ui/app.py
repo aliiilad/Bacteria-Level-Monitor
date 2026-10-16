@@ -8,6 +8,7 @@ scored in risk_model.py with today's weather from the free Open-Meteo forecast A
 
 Run:  streamlit run ui/app.py
 """
+import importlib
 from datetime import date
 from pathlib import Path
 
@@ -17,6 +18,12 @@ import streamlit as st
 
 import recommend
 import risk_model
+
+# Streamlit re-runs this file after every deploy but keeps imported modules in memory, so a
+# deploy that changes recommend.py or risk_model.py would run new app.py against the old
+# helpers (an AttributeError on Oct 16). Reloading them each run keeps all three in step.
+importlib.reload(recommend)
+importlib.reload(risk_model)
 
 APP_DIR = Path(__file__).parent
 BEACHES_CSV = APP_DIR.parent / "data" / "processed" / "beaches.csv"
