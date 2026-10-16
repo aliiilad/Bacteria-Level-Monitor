@@ -74,6 +74,11 @@ def risk_color(p):
     return band(p)[1]
 
 
+def pick_beach(name):
+    """Button callback: switch the beach picker to `name`."""
+    st.session_state["beach"] = name
+
+
 def weather_line(f):
     dry = int(f["days_since_rain"])
     return (f"{f['rain_prev_7days']:.0f} mm of rain in the past week · "
@@ -189,7 +194,8 @@ with st.container(key="sec-check"):
             "above Hawaiʻi's safety limit (130 MPN/100 mL).",
             anchor="check",
         )
-        beach = st.selectbox("Beach", beaches["beach_name"], index=4)
+        st.session_state.setdefault("beach", beaches["beach_name"].iloc[4])
+        beach = st.selectbox("Beach", beaches["beach_name"], key="beach")
         row = beaches.set_index("beach_name").loc[beach]
         site = str(row.site_id)
         base = live[site] if live else typical
@@ -238,6 +244,7 @@ with st.container(key="sec-check"):
     # Feature 2 (Person B): "What should I do?" + safer beach.
     advice_html = ""
     tips = "".join(f"<li>{tip}</li>" for tip in recommend.ADVICE[verdict])
+    alt = None
     if verdict == "LOWER RISK":
         suggestion = ""
     elif what_if:  # the sliders change only this beach, so don't compare made-up weather to real
@@ -247,12 +254,13 @@ with st.container(key="sec-check"):
         suggestion = '<div class="safer-note">Safer-beach suggestions need live weather.</div>'
     else:
         alt = recommend.safer_beach(site, beaches.to_dict("records"), today_risks, below=CAUTION_AT)
-        suggestion = (f"""<div class="safer"><span>Nearest lower-risk beach today</span>
-            <b>{alt['beach_name']}</b> · <b style="color:{risk_color(alt['risk'])}">{alt['risk']:.0%}</b>
-            · {alt['km']:.0f} km away (straight line)</div>""" if alt else
-                      '<div class="safer-note">No beach we track is lower risk today.</div>')
-    advice_html = f"""<div class="advice"><div class="advice-head">What should I do?</div>
-        <ul>{tips}</ul>{suggestion}</div>"""
+        suggestion = (f"""<div class="better"><div class="better-head">Better option today</div>
+            <div class="better-row"><span>{alt['beach_name']}</span><span>{alt['risk']:.0%}</span></div>
+            <div class="better-meta">Lower risk · {alt['km']:.0f} km away (straight line)</div></div>"""
+                      if alt else '<div class="safer-note">No beach we track is lower risk today.</div>')
+    better = suggestion if alt else ""   # the gold box goes first; notes go under the advice
+    advice_html = f"""{better}<div class="advice"><div class="advice-head">What should I do?</div>
+        <ul>{tips}</ul>{"" if alt else suggestion}</div>"""
 
     with card_col:
         html(
@@ -267,6 +275,30 @@ with st.container(key="sec-check"):
               Department of Health advisories.</div>
             </div>"""
         )
+        if alt:
+            st.button(f"Check {alt['beach_name']} instead  →", key="better-btn", type="primary",
+                      on_click=pick_beach, args=(alt["beach_name"],), width="stretch")
+
+# ------------------------------------------------------------------ Where to swim today
+# Lower-risk beaches nearest the selected one, each with a button that switches to it. Real
+# (live) weather only, like the "Better option today" box.
+with st.container(key="sec-swim"):
+    html(f"""<div class="swim-head"><div class="swim-title">Where to swim today</div>
+        <span>Lower-risk beaches, nearest to {beach} first</span></div>""")
+    if what_if or not live:
+        st.caption('Turn off "Try different weather" to see where to swim today.' if what_if
+                   else "Needs live weather, which is unavailable right now.")
+    else:
+        options = recommend.safer_beaches(site, beaches.to_dict("records"), today_risks, below=CAUTION_AT)
+        if not options:
+            st.caption("No beach we track is lower risk today.")
+        for col, b in zip(st.columns(3), options):
+            with col:
+                html(f"""<div class="swim-card"><div class="swim-row"><span>{b['beach_name']}</span>
+                    <b style="color:{risk_color(b['risk'])}">{b['risk']:.0%}</b></div>
+                    <div class="swim-meta">{b['region']} Shore · {b['km']:.0f} km</div></div>""")
+                st.button("Check this beach  →", key=f"swim-{b['site_id']}", on_click=pick_beach,
+                          args=(b["beach_name"],), width="stretch")
 
 # ------------------------------------------------------------------ 02 · Why this score
 with st.container(key="sec-why"):
