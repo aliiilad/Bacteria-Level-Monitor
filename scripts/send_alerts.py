@@ -56,8 +56,10 @@ def main():
             store.set_alerted = lambda token, alerted: None   # read real subscribers, change nothing
         send = print_email
     else:
-        if missing:
-            sys.exit(f"Missing settings: {', '.join(missing)}. Add them as GitHub secrets.")
+        if missing:  # not set up yet: skip quietly instead of failing every morning
+            print(f"Alerts not set up yet (missing {', '.join(missing)}); nothing sent. "
+                  "See docs/ALERTS_SETUP.md.")
+            return
         store, send = alerts.SupabaseStore(settings), alerts.send_email
 
     model = risk_model.load_model()
