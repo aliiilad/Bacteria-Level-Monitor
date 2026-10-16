@@ -184,6 +184,17 @@
 .site-footer a { display: block; color: var(--text) !important; text-decoration: none; margin-bottom: 12px; }
 .site-footer .copy { grid-column: 1 / -1; font-size: 13px; color: var(--text-muted); }
 
+/* ---------- Track my beach: email alerts (Person B) ---------- */
+.st-key-sec-alerts [data-testid="stForm"] { background: var(--bg-raised); border: 1px solid var(--line);
+  border-radius: 6px; padding: 28px 28px 20px; }
+.st-key-sec-alerts [data-testid="stTextInput"] input { background: transparent; color: var(--text);
+  border: 0; border-bottom: 2px solid var(--gold); border-radius: 0; font-size: 18px; }
+.st-key-sec-alerts [data-testid="stFormSubmitButton"] button,
+.st-key-sec-alerts [data-testid="stFormSubmitButton"] button p { color: var(--bg) !important; font-weight: 700; }
+@media (max-width: 760px) {
+  .st-key-sec-alerts [data-testid="stForm"] { padding: 20px 16px 14px; }
+}
+
 /* ---------- About the team (Person A) ---------- */
 /* Styles for the About section go here, phone-width rules too (in their own @media). */
 

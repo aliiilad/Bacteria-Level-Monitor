@@ -16,6 +16,7 @@ import pandas as pd
 import pydeck as pdk
 import streamlit as st
 
+import alerts
 import recommend
 import risk_model
 
@@ -24,6 +25,7 @@ import risk_model
 # helpers (an AttributeError on Oct 16). Reloading them each run keeps all three in step.
 importlib.reload(recommend)
 importlib.reload(risk_model)
+importlib.reload(alerts)
 
 APP_DIR = Path(__file__).parent
 BEACHES_CSV = APP_DIR.parent / "data" / "processed" / "beaches.csv"
@@ -79,6 +81,14 @@ def band(p):
 
 def risk_color(p):
     return band(p)[1]
+
+
+def alert_settings():
+    """Email-alert settings from Streamlit secrets; empty when they aren't set up yet."""
+    try:
+        return {name: st.secrets.get(name, "") for name in alerts.SETTING_NAMES}
+    except Exception:  # no secrets file at all (e.g. running locally)
+        return {}
 
 
 def pick_beach(name):
@@ -166,6 +176,31 @@ test = model["test"]
 typical = risk_model.typical_features(model)
 today_risks = {str(s): risk_model.predict(model, s, live[str(s)] if live else typical)[0]
                for s in beaches.site_id}
+
+# Email links: ?confirm=<token> starts alerts, ?unsubscribe=<token> stops them.
+beach_names = {str(b.site_id): b.beach_name for b in beaches.itertuples()}
+for action in ("confirm", "unsubscribe"):
+    token = st.query_params.get(action)
+    if not token:
+        continue
+    settings = alert_settings()
+    if alerts.missing_settings(settings):
+        st.warning("Email alerts aren't set up yet, so this link can't be used right now.")
+        break
+    try:
+        store = alerts.SupabaseStore(settings)
+        found = store.confirm(token) if action == "confirm" else store.unsubscribe(token)
+    except Exception:
+        st.error("Sorry, something went wrong with that link. Please try again later.")
+        break
+    if not found:
+        st.info("That link has already been used or has expired.")
+    elif action == "confirm":
+        st.success(f"Alerts are on for {beach_names.get(found['site_id'], 'your beach')}. "
+                   "We'll email you the morning it turns risky, and again when it's back to lower risk.")
+    else:
+        st.success(f"You're unsubscribed from alerts for {beach_names.get(found['site_id'], 'that beach')}.")
+    break
 
 # ------------------------------------------------------------------ Hero
 html(
@@ -387,6 +422,52 @@ with st.container(key="sec-map"):
                               get_fill_color="color", get_radius="radius", opacity=0.85, pickable=True)],
             tooltip={"text": "{beach_name}\nRisk now: {risk}\n{history}% of past samples unsafe"},
         ), height=480)
+
+# ------------------------------------------------------------------ Track my beach (email alerts)
+with st.container(key="sec-alerts"):
+    text_col, _, form_col = st.columns([5, 1, 5])
+    with text_col:
+        section_head(
+            "", "Track my beach", "Get an email when your beach turns risky",
+            "Pick the beach you swim at and a level. Every morning at about 5:30am we check the "
+            "forecast, and email you only the morning it crosses your level, with how long it may "
+            "stay risky and lower-risk beaches nearby. You get one more email when it's back to "
+            "lower risk.",
+            anchor="alerts",
+        )
+    with form_col:
+        settings = alert_settings()
+        with st.form("alert-form"):
+            email = st.text_input("Email", placeholder="you@example.com")
+            track = st.selectbox("Beach to track", beaches["beach_name"], index=None,
+                                 placeholder="Choose a beach")
+            level = st.radio("Email me when risk is", list(alerts.LEVELS), format_func=alerts.LEVELS.get)
+            submitted = st.form_submit_button("Send me a confirmation email", type="primary",
+                                              width="stretch")
+        st.caption("We store only your email, the beach, and your level, nothing else. Alerts start after "
+                   "you click the link in the confirmation email, and every email has an unsubscribe link.")
+        if submitted:
+            signups = st.session_state.get("alert_signups", 0)
+            if alerts.missing_settings(settings):
+                st.info("Email alerts are being set up. Check back soon!")
+            elif not alerts.valid_email(email):
+                st.error("Please enter a valid email address.")
+            elif track is None:
+                st.error("Please choose a beach to track.")
+            elif signups >= 3:  # keeps one visitor from flooding inboxes with confirmation emails
+                st.error("You've signed up several times already. Please check your inbox.")
+            else:
+                site_id = str(beaches.set_index("beach_name").loc[track, "site_id"])
+                try:
+                    token = alerts.SupabaseStore(settings).add(email.strip().lower(), site_id, level)
+                    alerts.send_email(settings, email.strip(), *alerts.confirmation_email(
+                        track, level, alerts.link(settings["APP_URL"], confirm=token)))
+                except Exception:
+                    st.error("Sorry, we couldn't sign you up right now. Please try again later.")
+                else:
+                    st.session_state["alert_signups"] = signups + 1
+                    st.success(f"Almost done: check {email.strip()} for a confirmation link "
+                               "(it may land in your spam folder).")
 
 # ------------------------------------------------------------------ 04 · How well it works
 comparison = test["comparison"]

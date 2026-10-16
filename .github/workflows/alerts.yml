@@ -1,0 +1,31 @@
+# Daily email alerts (scripts/send_alerts.py). 15:30 UTC = 5:30am in Hawaiʻi (no daylight time).
+# GitHub may start scheduled runs a few minutes late. "Run workflow" on the Actions tab runs it now.
+name: Daily beach alerts
+
+on:
+  schedule:
+    - cron: "30 15 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print the emails instead of sending them"
+        type: boolean
+        default: true
+
+jobs:
+  alerts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r ui/requirements.txt
+      - name: Send alerts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          APP_URL: ${{ secrets.APP_URL }}
+        run: python scripts/send_alerts.py ${{ inputs.dry_run && '--dry-run' || '' }}

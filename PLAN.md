@@ -48,7 +48,7 @@ the end of each week.
 - [ ] Small fixes: the Windows date bug, the deprecated Streamlit argument, and the misplaced
       comment are fixed; the Magic Island pin is left (week 1).
 - [ ] New features: 3-day outlook, "What should I do?" with a safer-beach suggestion, and a
-      shareable beach link (weeks 2–3). Email alerts are dropped (Oct 14).
+      shareable beach link (weeks 2–3). Email alerts are back on (Oct 16).
 - [ ] README and CLAUDE.md still describe the old plan.
 - [ ] "About the team" section.
 - [ ] Video and submission.
@@ -135,21 +135,22 @@ Oct 14 so we can build them at the same time (see "Working in parallel" below).
    - Read `st.query_params` on load to pick the beach; update it when the beach changes.
    - Give each beach a short name for the link (a dict in `ui/app.py`).
    - One line under the picker: "Bookmark this page or add it to your Home Screen."
-4. **Email alerts: dropped (Oct 14).** The rule was to start only if 1–3 were done by
-   Saturday, Oct 10, and they weren't. The spec stays here in case we pick it up after we
-   submit. Subscribe with an email and a beach; get an email on mornings when that beach is
-   likely unsafe (over 60%).
-   - **Subscribe form** in `ui/app.py`: email + beach + "Alert me".
-   - **Database:** one free Supabase table: email, beach, confirmed yes/no, and a random
-     unsubscribe code. No names or anything else.
-   - **Daily job:** a GitHub Actions workflow runs a Python script at about 5:30am HST. It
-     fetches weather, scores each beach with `ui/risk_model.py`, and emails subscribers whose
-     beach is over 60% today.
-   - **Email service:** a free tier (e.g. Resend) sends the emails.
-   - **Must-haves:** a "click to confirm" email before any alert, so nobody can sign up
-     someone else; an unsubscribe link in every email; API keys only in Streamlit and GitHub
-     secret settings, never in the repo; wording like "Forecast: high bacteria risk at
-     Kailua today" plus "not an official advisory", never "the water is unsafe".
+4. **Email alerts: back on (Oct 16), built by Person B.** Sign up with an email, a beach, and a
+   level; get an email the morning that beach crosses your level, and one more when it's back to
+   lower risk. Decided Oct 16:
+   - **Sending:** a team Gmail with an app password (no website domain needed).
+   - **Storing:** a free Supabase table, `scripts/alerts_schema.sql`: email, beach, level, a random
+     token for the confirm and unsubscribe links, confirmed yes/no. Row-level security on.
+   - **Level:** each person picks 30%+ (caution or worse) or 60%+ (likely unsafe).
+   - **How often:** only when the beach crosses the level, then once when it drops back. No repeats.
+   - **In each alert:** how long the 3-day outlook keeps it risky, and the 3 nearest lower-risk
+     beaches, plus a link to the site.
+   - **On the page:** its own "Track my beach" section after the map; the form starts with no beach
+     picked.
+   - Code: `ui/alerts.py` (no Streamlit), `scripts/send_alerts.py` (`--dry-run` prints instead of
+     sending), `.github/workflows/alerts.yml` (5:30am HST daily, or "Run workflow").
+   - **Setup only we can do:** the Gmail, the Supabase project, and the five secrets in Streamlit
+     and GitHub. Steps: `docs/ALERTS_SETUP.md`. Until then the form says alerts are being set up.
 5. **Model improvements** (e.g. logistic regression compared with the current linear
    regression): after the app features. See "Model later" below.
 
@@ -357,8 +358,10 @@ App first, model later: this week we both build app features (see "Working in pa
 - [x] Clear message when the weather fetch fails (falls back to a typical day), and an
       hourly weather cache.
 - [ ] README with screenshots, the live URL, and the AI disclosure.
-- Email alerts (new feature 4): dropped on Oct 14, since features 1–3 weren't done by
-  Sat, Oct 10.
+- [x] Email alerts code (new feature 4, back on Oct 16): sign-up form, confirm/unsubscribe
+      links, daily job. See feature 4 above.
+- [ ] Email alerts setup: team Gmail + app password, Supabase table, five secrets in Streamlit
+      and GitHub (`docs/ALERTS_SETUP.md`), then a dry run and one real test email.
 
 **Together**
 - [ ] Feature freeze Sunday, Oct 18: after that, bug fixes and the video only.
