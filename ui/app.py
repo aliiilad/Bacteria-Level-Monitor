@@ -111,14 +111,14 @@ def gauge_svg(p):
     filled = 377 * p
     return f"""
     <svg class="gauge" viewBox="0 0 300 200">
-      <path d="M30 160 A120 120 0 0 1 270 160" fill="none" stroke="rgba(255,255,255,.12)"
+      <path d="M30 160 A120 120 0 0 1 270 160" fill="none" stroke="rgba(34,48,58,.10)"
             stroke-width="14" stroke-linecap="round"/>
       <path d="M30 160 A120 120 0 0 1 270 160" fill="none" stroke="{risk_color(p)}"
             stroke-width="14" stroke-linecap="round" stroke-dasharray="{filled} 400"/>
-      <text x="150" y="140" text-anchor="middle" fill="#fff"
+      <text x="150" y="140" text-anchor="middle" fill="#22303a"
             font-family="DM Serif Display, Georgia, serif" font-size="64">{p:.0%}</text>
-      <text x="150" y="194" text-anchor="middle" fill="rgba(255,255,255,.6)"
-            font-family="Outfit, sans-serif" font-size="12" letter-spacing="3">CHANCE OF HIGH BACTERIA</text>
+      <text x="150" y="194" text-anchor="middle" fill="rgba(34,48,58,.6)"
+            font-family="Outfit, sans-serif" font-size="15" font-weight="600">chance of high bacteria today</text>
     </svg>"""
 
 
@@ -180,39 +180,38 @@ for action in ("confirm", "unsubscribe"):
         st.success(f"You're unsubscribed from alerts for {beach_names.get(found['site_id'], 'that beach')}.")
     break
 
-# ------------------------------------------------------------------ Official advisories first
-html(f"""<div class="official"><div class="official-text"><b>This is a forecast, not an official
-    advisory.</b> Always check the Hawaiʻi Department of Health's current beach advisories first,
-    and follow any posted signs.</div>
-    <a class="official-btn" href="{DOH_URL}" target="_blank" rel="noopener">Official DOH advisories &rarr;</a></div>""")
-
 # ------------------------------------------------------------------ Hero
 html(
     f"""
 <div class="hero" style="background-image:url('{hero_photo()}')">
   <nav class="nav">
-    <div class="brand">KAI CHECK</div>
+    <div class="brand">Safe Beaches Oʻahu</div>
     <div class="links"><a href="#check">Beaches</a><a href="#why">How it works</a><a href="#map">Map</a><a href="#results">Results</a></div>
     <div><a href="#about">About</a></div>
   </nav>
   <div class="hero-copy">
-    <div class="eyebrow">A beach safety forecast</div>
-    <h1>Know The Water<br>Before You Dive In</h1>
+    <h1>Is it safe to swim today?</h1>
+    <p class="hero-sub">A daily bacteria forecast for popular Oʻahu beaches, built from today's weather.</p>
   </div>
 </div>"""
 )
 
-# ------------------------------------------------------------------ Beach picker, right under the photo
+# ------------------------------------------------------------------ Beach picker + official notice, right under the photo
 with st.container(key="sec-pick"):
     st.session_state.setdefault("beach", beaches["beach_name"].iloc[4])
     beach = st.selectbox("Choose your beach", beaches["beach_name"], key="beach")
+    # Official advisories come before any number we show
+    html(f"""<div class="official"><div class="official-text"><b>This is a forecast, not an official
+        advisory.</b> Always check the Hawaiʻi Department of Health's current beach advisories first,
+        and follow any posted signs.</div>
+        <a class="official-btn" href="{DOH_URL}" target="_blank" rel="noopener">Official DOH advisories &rarr;</a></div>""")
 
 # ------------------------------------------------------------------ 01 · Check your beach
 with st.container(key="sec-check"):
-    text_col, _, card_col = st.columns([5, 1, 4], vertical_alignment="center")
+    text_col, _, card_col = st.columns([5, 1, 4])
     with text_col:
         section_head(
-            "01", "Check your beach", "How safe is the<br>water today?",
+            "01", "Today's forecast", "What the rain means<br>for the water",
             "Lab tests happen only every two weeks, but rain washes bacteria into the ocean "
             "within hours. We turn recent weather into today's chance that enterococcus is "
             "above Hawaiʻi's safety limit (130 MPN/100 mL).",
@@ -345,7 +344,7 @@ with st.container(key="sec-why"):
             <div class="beach">{beach}</div>{factors}<div class="fine">{why}</div></div>""")
     with text_col:
         section_head(
-            "02", "What's driving it", "Why did we give<br>this score?",
+            "02", "What's driving it", "Why this number?",
             "Rain washes soil, sewage, and animal waste into the surf, and some beaches, like "
             "those near stream mouths, run high most of the time. Each bar shows how much one "
             "factor pushed today's number up or down compared with an average beach and day. "
@@ -362,14 +361,14 @@ with st.container(key="sec-map"):
     text_col, _, map_col = st.columns([4, 1, 6], vertical_alignment="center")
     with text_col:
         section_head(
-            "03", "Where to swim", "Every beach,<br>at a glance",
+            "03", "Map", "Every beach we track,<br>side by side",
             ("Each dot is today's risk at that beach from the live forecast. "
              if live else "Live weather is unavailable, so dots show risk on a typical day. ")
-            + "Green is lower risk, gold is caution, coral is likely unsafe. Tap a dot for details.",
+            + "Green is lower risk, orange is caution, red is likely unsafe. Tap a dot for details.",
             anchor="map",
         )
     with map_col:
-        rgb = {"LOWER RISK": [95, 211, 184], "CAUTION": [251, 215, 132], "LIKELY UNSAFE": [242, 119, 92]}
+        rgb = {"LOWER RISK": [18, 160, 122], "CAUTION": [245, 158, 11], "LIKELY UNSAFE": [230, 61, 46]}  # --safe/--caution/--unsafe
         rows = []
         for b in beaches.itertuples():
             # selected beach follows the what-if sliders
@@ -398,7 +397,7 @@ with st.container(key="sec-map"):
             x["color"] = rgb[band(x["r"])[0]]
             x["radius"] = 1300 if recommend.same_beach(x["site_id"], site) else 800
         st.pydeck_chart(pdk.Deck(
-            map_style="dark",
+            map_style="light",
             initial_view_state=pdk.ViewState(latitude=21.47, longitude=-157.97, zoom=9),
             layers=[pdk.Layer("ScatterplotLayer", pd.DataFrame(rows), get_position="[longitude, latitude]",
                               get_fill_color="color", get_radius="radius", opacity=0.85, pickable=True)],
@@ -410,7 +409,7 @@ with st.container(key="sec-alerts"):
     text_col, _, form_col = st.columns([5, 1, 5])
     with text_col:
         section_head(
-            "", "Track my beach", "Get an email when your beach turns risky",
+            "", "Track my beach", "Get a heads-up when your beach turns risky",
             "Pick the beach you swim at and a level. Every morning at about 5:30am we check the "
             "forecast, and email you only the morning it crosses your level, with how long it may "
             "stay risky and lower-risk beaches nearby. You get one more email when it's back to "
@@ -461,7 +460,7 @@ with st.container(key="sec-results"):
     text_col, _, card_col = st.columns([5, 1, 5], vertical_alignment="center")
     with text_col:
         section_head(
-            "04", "How well it works", "Tested on days<br>it never saw",
+            "04", "How well it works", "Does it actually work?",
             f"We trained on {model['train_years'][0]}–{model['train_years'][1]} and held back "
             f"{test['n']} samples from {test['years'][0]}–{str(test['years'][1])[2:]}, "
             f"{test['n_unsafe']} of them unsafe. A rule that only warns on flash-flood-level rain "
@@ -513,7 +512,7 @@ with st.container(key="sec-limits"):
 html(
     """
 <footer class="site-footer" id="about">
-  <div><div class="brand">KAI CHECK</div>
+  <div><div class="brand">Safe Beaches Oʻahu</div>
     <p>A Congressional App Challenge project predicting ocean bacteria risk at Oʻahu beaches.
     A forecast, not a lab test — always follow posted Department of Health advisories.</p></div>
   <div><h4>The Project</h4><a href="#why">How it works</a><a href="#results">Results</a><a href="#limits">Limitations</a>

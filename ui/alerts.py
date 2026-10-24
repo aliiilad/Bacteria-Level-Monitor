@@ -156,7 +156,7 @@ def confirmation_email(beach_name, level, confirm_url):
             "If you didn't sign up, ignore this email and nothing will be sent.")
     html = f"""<div style="font-family: Arial, sans-serif; font-size: 15px; line-height: 1.55; color: #0b1d26;">
 <p>Click to start email alerts for <b>{beach_name}</b> when its risk is {LEVELS[level]}:</p>
-<p><a href="{confirm_url}" style="background: #fbd784; color: #0b1d26; padding: 10px 16px; text-decoration: none; font-weight: bold;">Confirm alerts</a></p>
+<p><a href="{confirm_url}" style="background: #ff6b4a; color: #ffffff; padding: 10px 16px; text-decoration: none; font-weight: bold;">Confirm alerts</a></p>
 <p style="color: #555; font-size: 13px;">If you didn't sign up, ignore this email and nothing will be sent.</p></div>"""
     return subject, text, html
 
