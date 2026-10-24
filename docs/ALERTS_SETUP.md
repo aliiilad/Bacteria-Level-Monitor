@@ -2,7 +2,7 @@
 
 The code is done: the sign-up form and links (`ui/app.py`), the logic and emails (`ui/alerts.py`),
 the daily job (`scripts/send_alerts.py`), and its schedule (`.github/workflows/alerts.yml`).
-Until the steps below are done, the form on the live site says "Email alerts are being set up"
+Until the steps below are done, the alerts section on the live site says "Coming soon"
 and nothing is sent. Allow about 30 minutes.
 
 **Who:** whoever owns these accounts is responsible for them. If you're under 18, a parent or
@@ -18,6 +18,9 @@ teacher may need to create or co-own the Gmail and Supabase accounts.
 ## 2. Supabase table that stores subscribers
 1. Sign up at supabase.com (free) → **New project** (any name, a strong database password, region
    "West US").
+   Under the security options: **Enable Data API: on** (the app talks to the table through it),
+   **Automatically expose new tables: off** (the SQL below grants access itself), **Enable
+   automatic RLS: on**.
 2. **SQL Editor → New query**, paste all of `scripts/alerts_schema.sql`, click **Run**. It creates
    the `subscribers` table with row-level security on, so the public can't read it.
 3. **Project Settings → API**: copy the **Project URL** and the **service_role** key. The
