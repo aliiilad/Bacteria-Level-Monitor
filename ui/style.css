@@ -225,6 +225,17 @@
 .st-key-sec-alerts [data-testid="stTextInput"] input { background: var(--bg-raised); color: var(--text); font-size: 17px; }
 .st-key-sec-alerts [data-testid="stFormSubmitButton"] button,
 .st-key-sec-alerts [data-testid="stFormSubmitButton"] button p { color: #ffffff !important; font-weight: 600; }
+/* "Sent!" card that replaces the form after a sign-up */
+.st-key-sec-alerts .sent { background: var(--bg-raised); border-radius: var(--radius); padding: 28px 26px 22px;
+  text-align: center; box-shadow: 0 12px 30px rgba(90, 30, 10, 0.25); }
+.sent-check { width: 64px; height: 64px; margin: 0 auto 12px; border-radius: 50%; background: var(--safe); color: #ffffff;
+  font-size: 34px; font-weight: 700; line-height: 64px; animation: pop 0.35s ease-out; }
+.sent-head { font-family: var(--head); font-weight: 700; font-size: 26px; color: var(--text); margin-bottom: 8px; }
+.st-key-sec-alerts .sent p { color: var(--text); font-size: 16px; line-height: 1.6; margin: 0 0 8px; }
+.st-key-sec-alerts .sent .sent-fine { color: var(--text-muted); font-size: 14px; margin: 0; }
+@keyframes pop { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .sent-check { animation: none; } }
+.st-key-alert-again button { margin-top: 12px; background: rgba(255, 255, 255, 0.92) !important; }
 .st-key-sec-alerts .soon-head { color: var(--accent); font-family: var(--head); font-size: 20px; font-weight: 700; margin-bottom: 8px; }
 .st-key-sec-alerts .soon p { color: var(--text-muted); font-size: 16px; line-height: 1.6; margin: 0; }
 .sample-mail { margin-top: 16px; padding: 18px 22px; border-radius: var(--radius); background: rgba(255, 255, 255, 0.12);

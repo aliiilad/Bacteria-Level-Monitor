@@ -545,6 +545,15 @@ with st.container(key="sec-alerts"):
             html("""<div class="soon"><div class="soon-head">Coming soon</div>
                 <p>Email alerts are almost ready. Until then, check this page and the official DOH
                 advisories before you swim.</p></div>""")
+        elif "alert_sent" in st.session_state:  # just signed up: show a clear "sent" state instead of the form
+            sent = st.session_state["alert_sent"]
+            html(f"""<div class="sent"><div class="sent-check">&#10003;</div><div class="sent-head">Sent!</div>
+                <p>We emailed a confirmation link to <b>{sent['email']}</b> for <b>{sent['beach']}</b>.
+                Click it to turn your alerts on.</p>
+                <p class="sent-fine">Don't see it? Check your spam folder, and mark it "Not spam" so the
+                link works and later alerts reach your inbox.</p></div>""")
+            st.button("Track another beach", key="alert-again", width="stretch",
+                      on_click=lambda: st.session_state.pop("alert_sent", None))
         else:
             with st.form("alert-form"):
                 email = st.text_input("Email", placeholder="you@example.com")
@@ -566,15 +575,16 @@ with st.container(key="sec-alerts"):
                 else:
                     site_id = str(beaches.set_index("beach_name").loc[track, "site_id"])
                     try:
-                        token = alerts.SupabaseStore(settings).add(email.strip().lower(), site_id, level)
-                        alerts.send_email(settings, email.strip(), *alerts.confirmation_email(
-                            track, level, alerts.link(settings["APP_URL"], confirm=token)))
+                        with st.spinner("Sending your confirmation email…"):
+                            token = alerts.SupabaseStore(settings).add(email.strip().lower(), site_id, level)
+                            alerts.send_email(settings, email.strip(), *alerts.confirmation_email(
+                                track, level, alerts.link(settings["APP_URL"], confirm=token)))
                     except Exception:
                         st.error("Sorry, we couldn't sign you up right now. Please try again later.")
                     else:
                         st.session_state["alert_signups"] = signups + 1
-                        st.success(f"Almost done: check {email.strip()} for a confirmation link "
-                                   "(it may land in your spam folder).")
+                        st.session_state["alert_sent"] = {"email": email.strip(), "beach": track}
+                        st.rerun()
         html("""<div class="sample-mail"><div class="sample-head">Example alert</div>
             <div class="sample-subject">Forecast: high bacteria risk at Kailua Beach Park today (64%)</div>
             <p>Our forecast shows it staying at caution or worse through Sunday.<br>

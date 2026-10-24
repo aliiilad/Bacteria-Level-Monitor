@@ -156,7 +156,11 @@ def confirmation_email(beach_name, level, confirm_url):
             "If you didn't sign up, ignore this email and nothing will be sent.")
     html = f"""<div style="font-family: Arial, sans-serif; font-size: 15px; line-height: 1.55; color: #0b1d26;">
 <p>Click to start email alerts for <b>{beach_name}</b> when its risk is {LEVELS[level]}:</p>
-<p><a href="{confirm_url}" style="background: #ff6b4a; color: #ffffff; padding: 10px 16px; text-decoration: none; font-weight: bold;">Confirm alerts</a></p>
+<table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td style="border-radius: 999px; background: #d2562e;">
+<a href="{confirm_url}" target="_blank" style="display: inline-block; padding: 12px 22px; border-radius: 999px; background: #d2562e; color: #ffffff; text-decoration: none; font-weight: bold;">Confirm alerts</a>
+</td></tr></table>
+<p style="color: #555; font-size: 13px;">Button not working? Copy this link into your browser:<br>
+<a href="{confirm_url}" style="color: #a9411f; word-break: break-all;">{confirm_url}</a></p>
 <p style="color: #555; font-size: 13px;">If you didn't sign up, ignore this email and nothing will be sent.</p></div>"""
     return subject, text, html
 
@@ -196,10 +200,17 @@ def clear_email(beach_name, risk, level, app_url, unsubscribe_url):
     return subject, text, html
 
 
+def base_url(app_url):
+    """APP_URL cleaned up, with https:// added when the setting leaves it out: email apps
+    (Gmail) drop links that don't start with it, leaving a button you can't click."""
+    url = app_url.strip().rstrip("/")
+    return url if url.startswith(("https://", "http://")) else "https://" + url
+
+
 def link(app_url, **params):
     """APP_URL with query parameters, e.g. link(url, confirm=token)."""
     from urllib.parse import urlencode
-    return f"{app_url.rstrip('/')}/?{urlencode(params)}"
+    return f"{base_url(app_url)}/?{urlencode(params)}"
 
 
 # --------------------------------------------------------------------------- the daily job
@@ -209,6 +220,7 @@ def run_daily(settings, store, model, beaches, send=send_email, risks=None, date
     if risks is None:
         risks, dates = forecast_risks(model, beaches)
     names = {str(b["site_id"]): b["beach_name"] for b in beaches}
+    app_url = base_url(settings["APP_URL"])
     today = {site: day_risks[0] for site, day_risks in risks.items()}
     sent = 0
     for sub in store.confirmed():
@@ -221,9 +233,9 @@ def run_daily(settings, store, model, beaches, send=send_email, risks=None, date
             days, last = risky_until(risks[site], dates, level)
             nearby = recommend.safer_beaches(site, beaches, today, below=LOWER_RISK_BELOW)
             email = risky_email(names[site], today[site], level, days, last, nearby,
-                                settings["APP_URL"], unsubscribe_url)
+                                app_url, unsubscribe_url)
         else:
-            email = clear_email(names[site], today[site], level, settings["APP_URL"], unsubscribe_url)
+            email = clear_email(names[site], today[site], level, app_url, unsubscribe_url)
         send(settings, sub["email"], *email)
         store.set_alerted(sub["token"], action == "risky")
         sent += 1
