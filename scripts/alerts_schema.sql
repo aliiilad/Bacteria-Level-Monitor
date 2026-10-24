@@ -16,3 +16,9 @@ create table if not exists public.subscribers (
 -- Row-level security on with no policies: the public (anon) key can't read or write the table.
 -- Only the service key, kept in Streamlit and GitHub secrets, can.
 alter table public.subscribers enable row level security;
+
+-- Table access for the Data API. Only the server-side service key may use the table; the public
+-- (anon) and signed-in (authenticated) roles get nothing, even if new tables are auto-exposed.
+revoke all on public.subscribers from anon, authenticated;
+grant select, insert, update, delete on public.subscribers to service_role;
+grant usage, select on sequence public.subscribers_id_seq to service_role;
