@@ -1,8 +1,8 @@
-# Warm beach theme matching ui/style.css
+# Clean warm theme matching ui/style.css
 [theme]
 base = "light"
-primaryColor = "#ff6b4a"
-backgroundColor = "#fff8ef"
-secondaryBackgroundColor = "#ffeedd"
-textColor = "#22303a"
+primaryColor = "#d2562e"
+backgroundColor = "#fbf7f2"
+secondaryBackgroundColor = "#fdf0e5"
+textColor = "#2b211c"
 font = "sans serif"

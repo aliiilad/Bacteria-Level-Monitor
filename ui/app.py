@@ -105,21 +105,98 @@ def weather_line(f):
             f"{f['temp_mean']:.0f}°C · wind up to {f['wind_max']:.0f} km/h")
 
 
+def weather_tiles(f):
+    """Today's four model inputs as small tiles (section 01)."""
+    dry = int(f["days_since_rain"])
+    tiles = [(f"{f['rain_prev_7days']:.0f}", "mm", "rain in the past week"),
+             (f"{dry}", "day" if dry == 1 else "days", "dry in a row"),
+             (f"{f['temp_mean']:.0f}", "°C", "average temperature"),
+             (f"{f['wind_max']:.0f}", "km/h", "strongest wind")]
+    cells = "".join(f'<div class="wx"><b>{v}<small> {u}</small></b><span>{label}</span></div>'
+                    for v, u, label in tiles)
+    return (f'<div class="wx-head">Today\'s weather at this beach</div><div class="wx-row">{cells}</div>'
+            '<div class="wx-src">Forecast from Open-Meteo, updated hourly.</div>')
+
+
+READ_KEY = """<div class="key"><div class="key-head">How to read the number</div>
+  <div class="key-row"><i style="background:var(--safe)"></i><span><b>Under 30%: lower risk.</b>
+    Bacteria are likely under the limit. Still skip murky water.</span></div>
+  <div class="key-row"><i style="background:var(--caution)"></i><span><b>30–60%: caution.</b>
+    Could go either way. Avoid stream mouths, or pick a lower-risk beach.</span></div>
+  <div class="key-row"><i style="background:var(--unsafe)"></i><span><b>Over 60%: likely unsafe.</b>
+    Stay out of the water today.</span></div></div>"""
+
+
 def gauge_svg(p):
     """Semicircle gauge, 0–100%."""
     # Arc length of a radius-120 half circle is pi*120 ≈ 377.
     filled = 377 * p
     return f"""
     <svg class="gauge" viewBox="0 0 300 200">
-      <path d="M30 160 A120 120 0 0 1 270 160" fill="none" stroke="rgba(34,48,58,.10)"
+      <path d="M30 160 A120 120 0 0 1 270 160" fill="none" stroke="#eee3d8"
             stroke-width="14" stroke-linecap="round"/>
       <path d="M30 160 A120 120 0 0 1 270 160" fill="none" stroke="{risk_color(p)}"
             stroke-width="14" stroke-linecap="round" stroke-dasharray="{filled} 400"/>
-      <text x="150" y="140" text-anchor="middle" fill="#22303a"
-            font-family="DM Serif Display, Georgia, serif" font-size="64">{p:.0%}</text>
-      <text x="150" y="194" text-anchor="middle" fill="rgba(34,48,58,.6)"
-            font-family="Outfit, sans-serif" font-size="15" font-weight="600">chance of high bacteria today</text>
+      <text x="150" y="140" text-anchor="middle" fill="#2b211c"
+            font-family="Quicksand, Inter, sans-serif" font-weight="700" font-size="64">{p:.0%}</text>
+      <text x="150" y="194" text-anchor="middle" fill="#6e6058"
+            font-family="Inter, sans-serif" font-size="15" font-weight="500">chance of high bacteria today</text>
     </svg>"""
+
+
+# Beach photos in ui/assets/beaches, with the credit each license asks for. Photos are shown
+# whole (never cropped), since some licenses don't allow changes (ND). The NC ones are fine
+# because the app is non-commercial. Beaches not listed yet show a drawn wave instead.
+FLICKR_DH = '<a href="https://www.flickr.com/photos/21442511@N08" target="_blank" rel="noopener">jdnx</a>'
+def flickr(title, photo_url, author, author_url, license_name, license_url):
+    """Credit line in the form Openverse gives: "Title" by Author, LICENSE (all linked)."""
+    a = lambda text, url: f'<a href="{url}" target="_blank" rel="noopener">{text}</a>'
+    return f'"{a(title, photo_url)}" by {a(author, author_url)}, {a(license_name, license_url)}'
+
+
+CC_BY_2 = '<a href="https://creativecommons.org/licenses/by/2.0/" target="_blank" rel="noopener">CC BY 2.0</a>'
+MAGIC_ISLAND = ("magic-island.jpg", 'Photo: <a href="https://www.flickr.com/photos/scotnelson/" target="_blank" '
+                'rel="noopener">Scot Nelson</a>, public domain')
+BEACH_PHOTOS = {
+    "858": MAGIC_ISLAND,
+    "859": MAGIC_ISLAND,
+    "776": ("kaalawai.jpg", f'"Diamond Head Beach" by {FLICKR_DH}, {CC_BY_2}'),
+    "777": ("kahaluu.jpg", flickr("Ka'a'awa and Kaneohe Bay", "https://www.flickr.com/photos/71856730@N04/51344812938",
+                                  "Eric Tessmer, Honolulu Hawaii", "https://www.flickr.com/photos/71856730@N04",
+                                  "CC BY 2.0", "https://creativecommons.org/licenses/by/2.0/")),
+    "8894": ("kailua.jpg", flickr("Kailua Beach Park", "https://www.flickr.com/photos/60035031@N06/39410040812",
+                                  "acase1968", "https://www.flickr.com/photos/60035031@N06",
+                                  "CC BY-NC-ND 2.0", "https://creativecommons.org/licenses/by-nc-nd/2.0/")),
+    "780": ("sharks-cove.jpg", flickr("Shark's Cove, Oahu", "https://www.flickr.com/photos/91506145@N00/3643278482",
+                                      "Choconancy1", "https://www.flickr.com/photos/91506145@N00",
+                                      "CC BY-NC-SA 2.0", "https://creativecommons.org/licenses/by-nc-sa/2.0/")),
+    # No free photo of Kaiaka Bay itself yet; this one is nearby Haleʻiwa Beach Park, and the card says so.
+    "1197": ("haleiwa.jpg", "Nearby Haleʻiwa Beach Park: " + flickr(
+        "Hawaii-Haleiwa Beach Park", "https://www.flickr.com/photos/78672040@N00/2622943406", "coconut wireless",
+        "https://www.flickr.com/photos/78672040@N00", "CC BY-ND 2.0", "https://creativecommons.org/licenses/by-nd/2.0/")),
+    "8916": ("pokai.jpg", flickr("Pokai Bucht - Oahu", "https://www.flickr.com/photos/81820192@N06/8793374919",
+                                 "MarlonBu", "https://www.flickr.com/photos/81820192@N06",
+                                 "CC BY 2.0", "https://creativecommons.org/licenses/by/2.0/")),
+    "861": ("waialae.jpg", f'"<a href="https://www.flickr.com/photos/21442511@N08/4807552983" target="_blank" '
+                           f'rel="noopener">Walk by the beach</a>" by {FLICKR_DH}, {CC_BY_2}'),
+}
+
+
+@st.cache_data
+def beach_photo(site_id):
+    """(photo as a data URL, credit HTML) for a beach, or ("", "") if we don't have one yet."""
+    if site_id not in BEACH_PHOTOS:
+        return "", ""
+    name, credit = BEACH_PHOTOS[site_id]
+    path = APP_DIR / "assets" / "beaches" / name
+    return "data:image/jpeg;base64," + base64.b64encode(path.read_bytes()).decode(), credit
+
+
+@st.cache_data
+def asset_url(name):
+    """A file in ui/assets as a data URL, so it ships inside the page."""
+    path = APP_DIR / "assets" / name
+    return f"data:image/{path.suffix[1:]};base64," + base64.b64encode(path.read_bytes()).decode()
 
 
 @st.cache_data
@@ -193,6 +270,7 @@ html(
     <h1>Is it safe to swim today?</h1>
     <p class="hero-sub">A daily bacteria forecast for popular Oʻahu beaches, built from today's weather.</p>
   </div>
+  <div class="photo-credit">Mokoliʻi from Secret Island, Kualoa, Oʻahu · Photo: Agnes Tang</div>
 </div>"""
 )
 
@@ -221,7 +299,7 @@ with st.container(key="sec-check"):
         site = str(row.site_id)
         base = live[site] if live else typical
         if live:
-            st.caption(f"Today's forecast from Open-Meteo: {weather_line(base)}.")
+            html(weather_tiles(base))
         else:
             st.caption("Live weather is unavailable right now, so this starts from a typical "
                        "day. Move the sliders to try other conditions.")
@@ -232,6 +310,7 @@ with st.container(key="sec-check"):
                 lo, hi = model["features"][name]["min"], model["features"][name]["max"]
                 features[name] = st.slider(f"{label} ({unit})", lo, hi, min(max(base[name], lo), hi),
                                            step, format=fmt, key=f"{name}-{site}")
+        html(READ_KEY)
 
     prob, pushes = risk_model.predict(model, site, features)
     verdict, color = band(prob)
@@ -317,11 +396,27 @@ with st.container(key="sec-swim"):
             st.caption("No beach we track is lower risk today.")
         for col, b in zip(st.columns(3), options):
             with col:
-                html(f"""<div class="swim-card"><div class="swim-row"><span>{b['beach_name']}</span>
-                    <b style="color:{risk_color(b['risk'])}">{b['risk']:.0%}</b></div>
-                    <div class="swim-meta">{b['region']} Shore · {b['km']:.0f} km</div></div>""")
+                photo, credit = beach_photo(b["site_id"])
+                pic = (f'<div class="swim-pic"><img src="{photo}" alt="{b["beach_name"]}"></div>' if photo
+                       else '<div class="swim-pic none"></div>')
+                html(f"""<div class="swim-card">{pic}<div class="swim-body">
+                    <div class="swim-name">{b['beach_name']}</div>
+                    <div class="swim-status"><i style="background:{risk_color(b['risk'])}"></i>{band(b['risk'])[0].capitalize()} · {b['risk']:.0%}</div>
+                    <div class="swim-meta">{b['region']} Shore · {b['km']:.0f} km away</div>
+                    {f'<div class="swim-credit">{credit}</div>' if credit else ''}</div></div>""")
                 st.button("Check this beach  →", key=f"swim-{b['site_id']}", on_click=pick_beach,
                           args=(b["beach_name"],), width="stretch")
+
+# ------------------------------------------------------------------ How it works (3 steps)
+with st.container(key="sec-steps"):
+    html(f"""<h2 class="center-title left">How it works</h2><div class="steps">
+        <div class="step"><div class="step-num">1</div><h3>We read today's weather</h3>
+          <p>Rain over the past week, dry days in a row, temperature, and wind at each beach, from Open-Meteo.</p></div>
+        <div class="step"><div class="step-num">2</div><h3>Our model scores each beach</h3>
+          <p>Trained on {model['n_train']:,} Surfrider water samples from {model['train_years'][0]}–{model['train_years'][1]}, and tested on {test['n']} newer ones.</p></div>
+        <div class="step"><div class="step-num">3</div><h3>You get a forecast</h3>
+          <p>The chance of high bacteria today, what to do about it, and lower-risk beaches nearby.</p></div>
+        </div>""")
 
 # ------------------------------------------------------------------ 02 · Why this score
 with st.container(key="sec-why"):
@@ -356,6 +451,34 @@ with st.container(key="sec-why"):
         st.markdown('<a class="read-more" href="#results">how well it works &nbsp;→</a>',
                     unsafe_allow_html=True)
 
+# ------------------------------------------------------------------ The bacteria
+with st.container(key="sec-germ"):
+    pic_col, _, text_col = st.columns([4, 1, 6], vertical_alignment="center")
+    with pic_col:
+        html(f"""<figure class="germ-pic"><img src="{asset_url('enterococcus.jpg')}"
+            alt="Enterococcus bacteria under a microscope: small dark purple ovals in pairs and short chains">
+            <figcaption>Enterococcus under a microscope: the small dark purple ovals, in pairs and short
+            chains, in a stained tissue sample.<br>Image: CDC / Dr. Mike Miller (PHIL #2899), public domain,
+            via <a href="https://commons.wikimedia.org/w/index.php?curid=1670351" target="_blank" rel="noopener">Wikimedia Commons</a>.</figcaption></figure>""")
+    with text_col:
+        section_head(
+            "", "The bacteria", "What is enterococcus?",
+            "Enterococcus are bacteria that live in the guts of people and animals. They usually "
+            "aren't what makes swimmers sick. But lots of them in the ocean means sewage or animal "
+            "waste got into the water, along with the germs that do cause illness. That's why "
+            "Hawaiʻi's Department of Health tests for them.",
+            anchor="bacteria",
+        )
+        html("""<div class="germ-list"><div class="germ-head">Swimming in water over the limit can cause</div>
+            <ul><li><b>Stomach illness</b>, the most common: nausea, vomiting, diarrhea, stomach pain, fever</li>
+            <li><b>Ear, eye, nose, and throat infections</b></li>
+            <li><b>Skin rashes</b> and itching</li></ul>
+            <p>Kids, older adults, and people with weaker immune systems get sick more easily, and
+            swallowing water or staying in longer raises the risk.</p>
+            <div class="germ-links">Read more:
+            <a href="https://www.epa.gov/national-aquatic-resource-surveys/indicators-enterococci" target="_blank" rel="noopener">EPA: enterococci &rarr;</a>
+            <a href="https://beachapedia.org/Bacteria:_enterococcus" target="_blank" rel="noopener">Surfrider Beachapedia &rarr;</a></div></div>""")
+
 # ------------------------------------------------------------------ 03 · Map
 with st.container(key="sec-map"):
     text_col, _, map_col = st.columns([4, 1, 6], vertical_alignment="center")
@@ -368,7 +491,7 @@ with st.container(key="sec-map"):
             anchor="map",
         )
     with map_col:
-        rgb = {"LOWER RISK": [18, 160, 122], "CAUTION": [245, 158, 11], "LIKELY UNSAFE": [230, 61, 46]}  # --safe/--caution/--unsafe
+        rgb = {"LOWER RISK": [21, 128, 61], "CAUTION": [217, 130, 0], "LIKELY UNSAFE": [212, 45, 45]}  # --safe/--caution/--unsafe
         rows = []
         for b in beaches.itertuples():
             # selected beach follows the what-if sliders
@@ -452,6 +575,11 @@ with st.container(key="sec-alerts"):
                         st.session_state["alert_signups"] = signups + 1
                         st.success(f"Almost done: check {email.strip()} for a confirmation link "
                                    "(it may land in your spam folder).")
+        html("""<div class="sample-mail"><div class="sample-head">Example alert</div>
+            <div class="sample-subject">Forecast: high bacteria risk at Kailua Beach Park today (64%)</div>
+            <p>Our forecast shows it staying at caution or worse through Sunday.<br>
+            Lower-risk beach nearby today: Kaʻalāwai / Cromwell's, 12%, 15 km away.</p>
+            <p class="sample-fine">A forecast, not an official advisory · Unsubscribe anytime</p></div>""")
 
 # ------------------------------------------------------------------ 04 · How well it works
 comparison = test["comparison"]
