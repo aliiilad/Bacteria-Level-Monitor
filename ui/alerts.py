@@ -174,7 +174,7 @@ def risky_email(beach_name, risk, level, days, last_date, nearby, app_url, unsub
     else:
         how_long = "Our forecast shows it dropping back below your level tomorrow."
     if nearby:
-        lines = [f"{b['beach_name']}: {b['risk']:.0%}, {b['km']:.0f} km away" for b in nearby]
+        lines = [f"{b['beach_name']}: {b['risk']:.0%}, {b['km']:.0f} km from {beach_name}" for b in nearby]
         near_text = "Lower-risk beaches nearby today:\n" + "\n".join(f"  - {line}" for line in lines)
         near_html = "<p><b>Lower-risk beaches nearby today:</b></p><ul>" + "".join(f"<li>{line}</li>" for line in lines) + "</ul>"
     else:
@@ -192,10 +192,10 @@ def risky_email(beach_name, risk, level, days, last_date, nearby, app_url, unsub
 def clear_email(beach_name, risk, level, app_url, unsubscribe_url):
     subject = f"Forecast: {beach_name} is back to lower risk ({risk:.0%})"
     text = (f"{beach_name} is at {risk:.0%} today, back under your alert level ({level:.0%}).\n"
-            "Still skip brown or murky water and stay away from stream mouths.\n\n"
+            "Still skip brown or murky water and stay away from where streams or storm drains flow into the ocean.\n\n"
             f"Check any beach: {app_url}\nUnsubscribe: {unsubscribe_url}")
     html = _wrap(f"""<p><b>{beach_name}</b> is at <b>{risk:.0%}</b> today, back under your alert level ({level:.0%}).</p>
-<p>Still skip brown or murky water and stay away from stream mouths.</p>
+<p>Still skip brown or murky water and stay away from where streams or storm drains flow into the ocean.</p>
 <p><a href="{app_url}">Check any beach on Safe Beaches Oʻahu</a></p>""", unsubscribe_url)
     return subject, text, html
 

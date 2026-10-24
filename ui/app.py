@@ -115,14 +115,14 @@ def weather_tiles(f):
     cells = "".join(f'<div class="wx"><b>{v}<small> {u}</small></b><span>{label}</span></div>'
                     for v, u, label in tiles)
     return (f'<div class="wx-head">Today\'s weather at this beach</div><div class="wx-row">{cells}</div>'
-            '<div class="wx-src">Forecast from Open-Meteo, updated hourly.</div>')
+            '<div class="wx-src">From Open-Meteo, a free weather forecast service. Updated hourly.</div>')
 
 
 READ_KEY = """<div class="key"><div class="key-head">How to read the number</div>
   <div class="key-row"><i style="background:var(--safe)"></i><span><b>Under 30%: lower risk.</b>
     Bacteria are likely under the limit. Still skip murky water.</span></div>
   <div class="key-row"><i style="background:var(--caution)"></i><span><b>30–60%: caution.</b>
-    Could go either way. Avoid stream mouths, or pick a lower-risk beach.</span></div>
+    Avoid spots where streams or storm drains flow into the ocean, or pick a lower-risk beach.</span></div>
   <div class="key-row"><i style="background:var(--unsafe)"></i><span><b>Over 60%: likely unsafe.</b>
     Stay out of the water today.</span></div></div>"""
 
@@ -339,7 +339,7 @@ with st.container(key="sec-check"):
                 <i><em style="width:{p * 100:.0f}%;background:{risk_color(p)}"></em></i></div>"""
         outlook_html = f"""<div class="outlook"><div class="outlook-head">3-day outlook</div>
             <div class="days">{days}</div>
-            <div class="outlook-note">* Less certain: forecast rain gets less reliable further out.</div></div>"""
+            <div class="outlook-note">* Less certain: rain forecasts get less accurate the further ahead they look.</div></div>"""
 
     # Feature 2 (Person B): "What should I do?" + safer beach.
     advice_html = ""
@@ -356,7 +356,7 @@ with st.container(key="sec-check"):
         alt = recommend.safer_beach(site, beaches.to_dict("records"), today_risks, below=CAUTION_AT)
         suggestion = (f"""<div class="better"><div class="better-head">Better option today</div>
             <div class="better-row"><span>{alt['beach_name']}</span><span>{alt['risk']:.0%}</span></div>
-            <div class="better-meta">Lower risk · {alt['km']:.0f} km away (straight line)</div></div>"""
+            <div class="better-meta">Lower risk · {alt['km']:.0f} km from {beach}</div></div>"""
                       if alt else '<div class="safer-note">No beach we track is lower risk today.</div>')
     better = suggestion if alt else ""   # the gold box goes first; notes go under the advice
     advice_html = f"""{better}<div class="advice"><div class="advice-head">What should I do?</div>
@@ -371,15 +371,10 @@ with st.container(key="sec-check"):
               <div class="verdict" style="color:{color}">FORECAST: {verdict}</div>
               <a class="doh-link" href="{DOH_URL}" target="_blank" rel="noopener">Check today's official DOH
               advisories for this beach &rarr;</a>{advice_html}{outlook_html}
-              <div class="fine">Historically, {row.n_unsafe} of {row.n_samples} samples here
-              ({row.unsafe_pct:.0f}%) were over the limit ({row.first_year}–{row.last_year}).
-              <br><br><b>A forecast from weather, not a lab test or an official advisory.</b> If DOH
-              has posted an advisory for this beach, follow it, whatever this forecast says.</div>
+              <div class="fine">In past lab tests at this beach, {row.unsafe_pct:.0f}% were over the safety
+              limit ({row.n_unsafe} of {row.n_samples} tests, {row.first_year}–{row.last_year}).</div>
             </div>"""
         )
-        if alt:
-            st.button(f"Check {alt['beach_name']} instead  →", key="better-btn", type="primary",
-                      on_click=pick_beach, args=(alt["beach_name"],), width="stretch")
 
 # ------------------------------------------------------------------ Where to swim today
 # Lower-risk beaches nearest the selected one, each with a button that switches to it. Real
@@ -402,7 +397,7 @@ with st.container(key="sec-swim"):
                 html(f"""<div class="swim-card">{pic}<div class="swim-body">
                     <div class="swim-name">{b['beach_name']}</div>
                     <div class="swim-status"><i style="background:{risk_color(b['risk'])}"></i>{band(b['risk'])[0].capitalize()} · {b['risk']:.0%}</div>
-                    <div class="swim-meta">{b['region']} Shore · {b['km']:.0f} km away</div>
+                    <div class="swim-meta">{b['region']} Shore · {b['km']:.0f} km from {beach}</div>
                     {f'<div class="swim-credit">{credit}</div>' if credit else ''}</div></div>""")
                 st.button("Check this beach  →", key=f"swim-{b['site_id']}", on_click=pick_beach,
                           args=(b["beach_name"],), width="stretch")
@@ -411,7 +406,7 @@ with st.container(key="sec-swim"):
 with st.container(key="sec-steps"):
     html(f"""<h2 class="center-title left">How it works</h2><div class="steps">
         <div class="step"><div class="step-num">1</div><h3>We read today's weather</h3>
-          <p>Rain over the past week, dry days in a row, temperature, and wind at each beach, from Open-Meteo.</p></div>
+          <p>Rain over the past week, dry days in a row, temperature, and wind at each beach, from Open-Meteo, a free weather forecast service.</p></div>
         <div class="step"><div class="step-num">2</div><h3>Our model scores each beach</h3>
           <p>Trained on {model['n_train']:,} Surfrider water samples from {model['train_years'][0]}–{model['train_years'][1]}, and tested on {test['n']} newer ones.</p></div>
         <div class="step"><div class="step-num">3</div><h3>You get a forecast</h3>
@@ -441,7 +436,7 @@ with st.container(key="sec-why"):
         section_head(
             "02", "What's driving it", "Why this number?",
             "Rain washes soil, sewage, and animal waste into the surf, and some beaches, like "
-            "those near stream mouths, run high most of the time. Each bar shows how much one "
+            "those where a stream or storm drain flows into the ocean, run high most of the time. Each bar shows how much one "
             "factor pushed today's number up or down compared with an average beach and day. "
             f"Tested on {test['n']} samples from {test['years'][0]}–{str(test['years'][1])[2:]} "
             f"that the model never saw, flagging at 30% caught "
@@ -485,11 +480,14 @@ with st.container(key="sec-map"):
     with text_col:
         section_head(
             "03", "Map", "Every beach we track,<br>side by side",
-            ("Each dot is today's risk at that beach from the live forecast. "
-             if live else "Live weather is unavailable, so dots show risk on a typical day. ")
-            + "Green is lower risk, orange is caution, red is likely unsafe. Tap a dot for details.",
+            ("Each dot is today's risk at that beach from the live forecast."
+             if live else "Live weather is unavailable, so dots show risk on a typical day."),
             anchor="map",
         )
+        html("""<ul class="map-key"><li><i style="background:var(--safe)"></i>Green: lower risk</li>
+            <li><i style="background:var(--caution)"></i>Orange: caution</li>
+            <li><i style="background:var(--unsafe)"></i>Red: likely unsafe</li></ul>
+            <p class="map-tip">Tap a dot for details.</p>""")
     with map_col:
         rgb = {"LOWER RISK": [21, 128, 61], "CAUTION": [217, 130, 0], "LIKELY UNSAFE": [212, 45, 45]}  # --safe/--caution/--unsafe
         rows = []
@@ -585,11 +583,6 @@ with st.container(key="sec-alerts"):
                         st.session_state["alert_signups"] = signups + 1
                         st.session_state["alert_sent"] = {"email": email.strip(), "beach": track}
                         st.rerun()
-        html("""<div class="sample-mail"><div class="sample-head">Example alert</div>
-            <div class="sample-subject">Forecast: high bacteria risk at Kailua Beach Park today (64%)</div>
-            <p>Our forecast shows it staying at caution or worse through Sunday.<br>
-            Lower-risk beach nearby today: Kaʻalāwai / Cromwell's, 12%, 15 km away.</p>
-            <p class="sample-fine">A forecast, not an official advisory · Unsubscribe anytime</p></div>""")
 
 # ------------------------------------------------------------------ 04 · How well it works
 comparison = test["comparison"]
@@ -629,18 +622,22 @@ with st.container(key="sec-results"):
 
 # ------------------------------------------------------------------ Limits
 LIMITS = [
-    ("The beach does most of the work",
-     f"Knowing the beach alone scores an AUC of {beach_only['auc']:.2f}. Weather adds about "
-     f"{test['auc'] - beach_only['auc']:.2f} on top. Rain matters, but some spots run high almost always."),
-    ("Storm days are rare in the data",
-     "Volunteers sample every two weeks on a fixed schedule, so few samples land right after "
-     "big storms. The model has seen the worst days least."),
-    ("The baseline is a stand-in",
-     "There is no archive of real flash-flood warnings to test against, so the comparison uses "
-     "days with 25 mm or more of rain as an approximation."),
-    ("A forecast, not a lab test",
-     f"About {model['n_train'] + test['n']:,} samples at {len(model['site_offsets'])} beaches is a small "
-     "dataset. Always follow posted Department of Health advisories."),
+    ("Where you swim matters most",
+     "Some beaches test high almost every time, rain or shine, so the beach itself tells you more "
+     "than the weather does. Our model gets most of its accuracy from each beach's track record; "
+     "the weather is a smaller boost on top. Rain still matters, just less than you might guess."),
+    ("Few tests right after storms",
+     "Volunteers test every two weeks on a set schedule, not after storms, so few tests happened "
+     "right after heavy rain. The model learns from past examples, so it has the least practice "
+     "on the stormy days that matter most and could be off on them."),
+    ("Our comparison is a stand-in",
+     "We wanted to compare with the state's real flash-flood warnings, but there is no public record "
+     "of past ones. So we treated every day with heavy rain (25 mm or more) as a warning day. Real "
+     "warnings might do a little better or worse than this stand-in."),
+    ("More data would help",
+     f"We had about {model['n_train'] + test['n']:,} water tests from {len(model['site_offsets'])} sites. "
+     "Ideally there would be daily tests at every beach, especially right after storms, so the "
+     "model could learn from many more risky days."),
 ]
 with st.container(key="sec-limits"):
     html('<div class="eyebrow" id="limits">Know the limits</div><div class="limits">'

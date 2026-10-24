@@ -31,11 +31,11 @@ def distance_km(lat1, lon1, lat2, lon2):
 ADVICE = {
     "LOWER RISK": [
         "Bacteria are likely under the state limit today.",
-        "Still skip water that looks brown or murky, and stay away from stream mouths and storm drains.",
+        "Still skip water that looks brown or murky, and stay away from where streams or storm drains flow into the ocean.",
     ],
     "CAUTION": [
         "Bacteria may be over the state limit today.",
-        "Avoid stream mouths, storm drains, and any brown or murky water.",
+        "Stay away from where streams or storm drains flow into the ocean, and from brown or murky water.",
         "If you can, swim at a lower-risk beach instead.",
     ],
     "LIKELY UNSAFE": [

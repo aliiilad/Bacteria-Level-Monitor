@@ -99,7 +99,7 @@
 .doh-link:hover { text-decoration: underline; }
 
 /* 01 · today's weather tiles and the reading key */
-.wx-head, .key-head, .germ-head, .sample-head, .outlook-head, .advice-head { font-size: 14px; font-weight: 700;
+.wx-head, .key-head, .germ-head, .outlook-head, .advice-head { font-size: 14px; font-weight: 700;
   color: var(--text); margin: 4px 0 10px; }
 .wx-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; max-width: 560px; }
 .wx { background: var(--bg-raised); border: 1px solid var(--line); border-radius: 14px; padding: 14px 12px; }
@@ -145,8 +145,6 @@
 .better-row { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-top: 6px;
   font-family: var(--head); font-weight: 700; font-size: 24px; line-height: 1.2; }
 .better-meta { margin-top: 4px; font-size: 14px; color: var(--text-muted); }
-.st-key-better-btn button { margin-top: 10px; min-height: 48px; }
-.st-key-better-btn button, .st-key-better-btn button p { color: #ffffff !important; font-weight: 600; font-size: 16px; }
 
 /* Where to swim today: photo cards with a status dot */
 [class*="st-key-sec-swim"] { padding-top: 0 !important; }
@@ -183,6 +181,12 @@
 .step h3 { font-family: var(--head); font-weight: 700; font-size: 19px; margin: 12px 0 8px; padding: 0; color: var(--text); }
 .step p { color: var(--text-muted); font-size: 15px; line-height: 1.6; margin: 0; }
 .center-title.left { text-align: left; }
+
+/* Map color key */
+.map-key { list-style: none; margin: 4px 0 8px; padding: 0; }
+.map-key li { display: flex; align-items: center; gap: 10px; font-size: 16px; color: var(--text); margin-bottom: 6px; }
+.map-key i { width: 14px; height: 14px; border-radius: 50%; }
+.map-tip { color: var(--text-muted); font-size: 15px; margin: 6px 0 0; }
 
 /* The bacteria */
 .germ-pic { margin: 0; text-align: center; }
@@ -238,12 +242,6 @@
 .st-key-alert-again button { margin-top: 12px; background: rgba(255, 255, 255, 0.92) !important; }
 .st-key-sec-alerts .soon-head { color: var(--accent); font-family: var(--head); font-size: 20px; font-weight: 700; margin-bottom: 8px; }
 .st-key-sec-alerts .soon p { color: var(--text-muted); font-size: 16px; line-height: 1.6; margin: 0; }
-.sample-mail { margin-top: 16px; padding: 18px 22px; border-radius: var(--radius); background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.35); color: #ffffff; }
-.sample-mail .sample-head { color: #ffffff; opacity: 0.85; }
-.sample-subject { font-weight: 700; font-size: 16px; margin-bottom: 6px; }
-.sample-mail p { font-size: 14px; line-height: 1.6; color: rgba(255, 255, 255, 0.9); margin: 0 0 6px; }
-.sample-fine { font-size: 12px !important; }
 
 /* ---------- 04 · Results chart ---------- */
 .card.chart { min-height: 0; }
