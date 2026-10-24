@@ -1,8 +1,8 @@
-# Dark theme matching ui/style.css
+# Warm beach theme matching ui/style.css
 [theme]
-base = "dark"
-primaryColor = "#fbd784"
-backgroundColor = "#0b1d26"
-secondaryBackgroundColor = "#10283a"
-textColor = "#ffffff"
+base = "light"
+primaryColor = "#ff6b4a"
+backgroundColor = "#fff8ef"
+secondaryBackgroundColor = "#ffeedd"
+textColor = "#22303a"
 font = "sans serif"
