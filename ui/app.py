@@ -29,6 +29,7 @@ importlib.reload(alerts)
 
 APP_DIR = Path(__file__).parent
 BEACHES_CSV = APP_DIR.parent / "data" / "processed" / "beaches.csv"
+DOH_URL = "https://health.hawaii.gov/cwb/"  # official Hawaiʻi DOH beach advisories (Clean Water Branch)
 CAUTION_AT, UNSAFE_AT = 0.30, 0.60  # risk bands: lower risk / caution / likely unsafe
 
 # Model input -> (slider label, unit, step, number format)
@@ -202,6 +203,12 @@ for action in ("confirm", "unsubscribe"):
         st.success(f"You're unsubscribed from alerts for {beach_names.get(found['site_id'], 'that beach')}.")
     break
 
+# ------------------------------------------------------------------ Official advisories first
+html(f"""<div class="official"><div class="official-text"><b>This is a forecast, not an official
+    advisory.</b> Always check the Hawaiʻi Department of Health's current beach advisories first,
+    and follow any posted signs.</div>
+    <a class="official-btn" href="{DOH_URL}" target="_blank" rel="noopener">Official DOH advisories &rarr;</a></div>""")
+
 # ------------------------------------------------------------------ Hero
 html(
     f"""
@@ -237,7 +244,7 @@ with st.container(key="sec-check"):
             anchor="check",
         )
         st.session_state.setdefault("beach", beaches["beach_name"].iloc[4])
-        beach = st.selectbox("Beach", beaches["beach_name"], key="beach")
+        beach = st.selectbox("Choose your beach", beaches["beach_name"], key="beach")
         row = beaches.set_index("beach_name").loc[beach]
         site = str(row.site_id)
         base = live[site] if live else typical
@@ -310,11 +317,13 @@ with st.container(key="sec-check"):
               <div class="label">{row.region} Shore · {when}</div>
               <div class="beach">{beach}</div>
               {gauge_svg(prob)}
-              <div class="verdict" style="color:{color}">{verdict}</div>{advice_html}{outlook_html}
+              <div class="verdict" style="color:{color}">FORECAST: {verdict}</div>
+              <a class="doh-link" href="{DOH_URL}" target="_blank" rel="noopener">Check today's official DOH
+              advisories for this beach &rarr;</a>{advice_html}{outlook_html}
               <div class="fine">Historically, {row.n_unsafe} of {row.n_samples} samples here
               ({row.unsafe_pct:.0f}%) were over the limit ({row.first_year}–{row.last_year}).
-              <br><br>A forecast from weather, not a lab test. Always follow posted
-              Department of Health advisories.</div>
+              <br><br><b>A forecast from weather, not a lab test or an official advisory.</b> If DOH
+              has posted an advisory for this beach, follow it, whatever this forecast says.</div>
             </div>"""
         )
         if alt:
@@ -437,37 +446,40 @@ with st.container(key="sec-alerts"):
         )
     with form_col:
         settings = alert_settings()
-        with st.form("alert-form"):
-            email = st.text_input("Email", placeholder="you@example.com")
-            track = st.selectbox("Beach to track", beaches["beach_name"], index=None,
-                                 placeholder="Choose a beach")
-            level = st.radio("Email me when risk is", list(alerts.LEVELS), format_func=alerts.LEVELS.get)
-            submitted = st.form_submit_button("Send me a confirmation email", type="primary",
-                                              width="stretch")
-        st.caption("We store only your email, the beach, and your level, nothing else. Alerts start after "
-                   "you click the link in the confirmation email, and every email has an unsubscribe link.")
-        if submitted:
-            signups = st.session_state.get("alert_signups", 0)
-            if alerts.missing_settings(settings):
-                st.info("Email alerts are being set up. Check back soon!")
-            elif not alerts.valid_email(email):
-                st.error("Please enter a valid email address.")
-            elif track is None:
-                st.error("Please choose a beach to track.")
-            elif signups >= 3:  # keeps one visitor from flooding inboxes with confirmation emails
-                st.error("You've signed up several times already. Please check your inbox.")
-            else:
-                site_id = str(beaches.set_index("beach_name").loc[track, "site_id"])
-                try:
-                    token = alerts.SupabaseStore(settings).add(email.strip().lower(), site_id, level)
-                    alerts.send_email(settings, email.strip(), *alerts.confirmation_email(
-                        track, level, alerts.link(settings["APP_URL"], confirm=token)))
-                except Exception:
-                    st.error("Sorry, we couldn't sign you up right now. Please try again later.")
+        if alerts.missing_settings(settings):  # accounts not set up yet: no form to fill in for nothing
+            html("""<div class="soon"><div class="soon-head">Coming soon</div>
+                <p>Email alerts are almost ready. Until then, check this page and the official DOH
+                advisories before you swim.</p></div>""")
+        else:
+            with st.form("alert-form"):
+                email = st.text_input("Email", placeholder="you@example.com")
+                track = st.selectbox("Beach to track", beaches["beach_name"], index=None,
+                                     placeholder="Choose a beach")
+                level = st.radio("Email me when risk is", list(alerts.LEVELS), format_func=alerts.LEVELS.get)
+                submitted = st.form_submit_button("Send me a confirmation email", type="primary",
+                                                  width="stretch")
+            st.caption("We store only your email, the beach, and your level, nothing else. Alerts start after "
+                       "you click the link in the confirmation email, and every email has an unsubscribe link.")
+            if submitted:
+                signups = st.session_state.get("alert_signups", 0)
+                if not alerts.valid_email(email):
+                    st.error("Please enter a valid email address.")
+                elif track is None:
+                    st.error("Please choose a beach to track.")
+                elif signups >= 3:  # keeps one visitor from flooding inboxes with confirmation emails
+                    st.error("You've signed up several times already. Please check your inbox.")
                 else:
-                    st.session_state["alert_signups"] = signups + 1
-                    st.success(f"Almost done: check {email.strip()} for a confirmation link "
-                               "(it may land in your spam folder).")
+                    site_id = str(beaches.set_index("beach_name").loc[track, "site_id"])
+                    try:
+                        token = alerts.SupabaseStore(settings).add(email.strip().lower(), site_id, level)
+                        alerts.send_email(settings, email.strip(), *alerts.confirmation_email(
+                            track, level, alerts.link(settings["APP_URL"], confirm=token)))
+                    except Exception:
+                        st.error("Sorry, we couldn't sign you up right now. Please try again later.")
+                    else:
+                        st.session_state["alert_signups"] = signups + 1
+                        st.success(f"Almost done: check {email.strip()} for a confirmation link "
+                                   "(it may land in your spam folder).")
 
 # ------------------------------------------------------------------ 04 · How well it works
 comparison = test["comparison"]

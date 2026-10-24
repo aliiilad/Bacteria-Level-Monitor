@@ -25,6 +25,18 @@
 }
 .stMarkdown p, .stMarkdown li, label, .stSlider, .stSelectbox { font-family: var(--sans); }
 
+/* ---------- Official advisories banner (Person B): above everything, so DOH comes first ---------- */
+.official { display: flex; align-items: center; justify-content: space-between; gap: 24px;
+  padding: 14px 12vw; background: var(--gold); color: var(--bg); font-size: 16px; line-height: 1.5; }
+.official-text b { font-weight: 700; }
+.official-btn { flex: none; background: var(--bg); color: var(--gold) !important; text-decoration: none;
+  font-weight: 700; font-size: 15px; padding: 10px 18px; border-radius: 4px; }
+.official-btn:hover { color: #ffe7b0 !important; }
+@media (max-width: 760px) {
+  .official { flex-direction: column; align-items: stretch; gap: 12px; padding: 14px 16px; font-size: 15px; }
+  .official-btn { text-align: center; }
+}
+
 /* ---------- Hero ---------- */
 .hero { position: relative; height: min(92vh, 860px); min-height: 620px; overflow: hidden; }
 .hero svg.scene { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -102,6 +114,24 @@
 .verdict { text-align: center; font-size: 15px; letter-spacing: 0.3em; font-weight: 700; margin-top: 8px; }
 .card .fine { font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-top: 28px; }
 
+/* Official advisory link under the verdict (Person B) */
+.doh-link { display: block; text-align: center; margin-top: 12px; color: var(--gold) !important;
+  font-weight: 600; font-size: 15px; text-decoration: underline; text-underline-offset: 3px; }
+
+/* 01 · Beach picker: the first thing to do on the page, so make it big (Person B) */
+.st-key-sec-check [data-testid="stSelectbox"] { margin: 8px 0 6px; }
+.st-key-sec-check [data-testid="stSelectbox"] [data-testid="stWidgetLabel"] p { color: var(--gold) !important;
+  font-size: 15px !important; }
+.st-key-sec-check [data-testid="stSelectbox"] [role="group"] {
+  background: var(--bg-raised) !important; border: 2px solid var(--gold) !important;
+  border-radius: 6px !important; padding: 8px 10px 8px 16px; min-height: 72px; }
+.st-key-sec-check [data-testid="stSelectbox"] input { font-size: 30px !important; }
+.st-key-sec-check [data-testid="stSelectbox"] button svg { width: 34px; height: 34px; }
+@media (max-width: 760px) {
+  .st-key-sec-check [data-testid="stSelectbox"] [role="group"] { min-height: 60px; }
+  .st-key-sec-check [data-testid="stSelectbox"] input { font-size: 22px !important; }
+}
+
 /* ---------- 01 · 3-day outlook (feature 1, Person A) ---------- */
 .outlook { margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--line); }
 .outlook-head { font-size: 13px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--text-muted);
@@ -169,6 +199,12 @@
 [data-baseweb="select"] > div { background: transparent !important; border: 0 !important;
   border-bottom: 2px solid var(--gold) !important; border-radius: 0 !important;
   font-family: var(--serif); font-size: 22px; color: var(--text) !important; }
+/* Streamlit 1.64 dropdowns: a role="group" box holding a text input and an open button */
+[data-testid="stSelectbox"] [role="group"] { background: transparent !important; border: 0 !important;
+  border-bottom: 2px solid var(--gold) !important; border-radius: 0 !important; box-shadow: none !important; }
+[data-testid="stSelectbox"] input { background: transparent !important; color: var(--text) !important;
+  font-family: var(--serif) !important; font-size: 22px !important; }
+[data-testid="stSelectbox"] button { color: var(--gold) !important; background: transparent !important; }
 [data-testid="stSlider"] [role="slider"] { background: var(--gold) !important; box-shadow: none !important; }
 [data-testid="stSliderThumbValue"] { color: var(--gold) !important; font-family: var(--sans); }
 [data-testid="stDeckGlJsonChart"] { border-radius: 4px; overflow: hidden; border: 1px solid var(--line); }
@@ -191,6 +227,11 @@
   border: 0; border-bottom: 2px solid var(--gold); border-radius: 0; font-size: 18px; }
 .st-key-sec-alerts [data-testid="stFormSubmitButton"] button,
 .st-key-sec-alerts [data-testid="stFormSubmitButton"] button p { color: var(--bg) !important; font-weight: 700; }
+.st-key-sec-alerts .soon { background: var(--bg-raised); border: 1px solid var(--line); border-radius: 6px;
+  padding: 28px; }
+.st-key-sec-alerts .soon-head { color: var(--gold); font-size: 14px; font-weight: 700; letter-spacing: 0.3em;
+  text-transform: uppercase; margin-bottom: 10px; }
+.st-key-sec-alerts .soon p { color: var(--text-muted); font-size: 16px; line-height: 1.6; margin: 0; }
 @media (max-width: 760px) {
   .st-key-sec-alerts [data-testid="stForm"] { padding: 20px 16px 14px; }
 }
