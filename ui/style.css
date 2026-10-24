@@ -38,10 +38,14 @@
 }
 
 /* ---------- Hero ---------- */
-.hero { position: relative; height: min(92vh, 860px); min-height: 620px; overflow: hidden; }
-.hero svg.scene { position: absolute; inset: 0; width: 100%; height: 100%; }
-.hero::after { /* fade the artwork into the page background, like the reference photo */
-  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 45%;
+.hero { position: relative; height: min(78vh, 720px); min-height: 520px; overflow: hidden;
+  background-size: cover; background-position: center 28%; }
+.hero::before { /* darken the sky behind the headline so the white text stays readable */
+  content: ""; position: absolute; inset: 0; z-index: 1;
+  background: linear-gradient(to bottom, rgba(11, 29, 38, 0.55), rgba(11, 29, 38, 0.15) 45%, rgba(11, 29, 38, 0) 60%);
+}
+.hero::after { /* fade the photo into the page background */
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 30%; z-index: 1;
   background: linear-gradient(to bottom, rgba(11, 29, 38, 0), var(--bg));
 }
 .nav {
@@ -54,10 +58,11 @@
 .nav a { color: var(--text) !important; text-decoration: none; }
 .nav a:hover { color: var(--gold) !important; }
 
-.hero-copy { position: absolute; z-index: 3; top: 230px; left: 29vw; right: 12vw; }
+.hero-copy { position: absolute; z-index: 3; top: 170px; left: 29vw; right: 12vw; }
 .hero-copy h1 {
   font-family: var(--serif); font-weight: 400; font-size: clamp(40px, 5.4vw, 80px);
   line-height: 1.08; margin: 0 0 32px; color: var(--text); padding: 0;
+  text-shadow: 0 2px 18px rgba(11, 29, 38, 0.55);
 }
 .scroll-hint { font-size: 14px; font-weight: 600; color: var(--text-muted); }
 
@@ -118,18 +123,20 @@
 .doh-link { display: block; text-align: center; margin-top: 12px; color: var(--gold) !important;
   font-weight: 600; font-size: 15px; text-decoration: underline; text-underline-offset: 3px; }
 
-/* 01 · Beach picker: the first thing to do on the page, so make it big (Person B) */
-.st-key-sec-check [data-testid="stSelectbox"] { margin: 8px 0 6px; }
-.st-key-sec-check [data-testid="stSelectbox"] [data-testid="stWidgetLabel"] p { color: var(--gold) !important;
+/* Beach picker, right under the hero photo: the first thing to do on the page (Person B) */
+.st-key-sec-pick { padding-top: 0; padding-bottom: 24px; margin-top: -60px; position: relative; z-index: 2; }
+.st-key-sec-pick [data-testid="stSelectbox"] { max-width: 720px; margin: 0 auto; }
+.st-key-sec-pick [data-testid="stSelectbox"] [data-testid="stWidgetLabel"] p { color: var(--gold) !important;
   font-size: 15px !important; }
-.st-key-sec-check [data-testid="stSelectbox"] [role="group"] {
+.st-key-sec-pick [data-testid="stSelectbox"] [role="group"] {
   background: var(--bg-raised) !important; border: 2px solid var(--gold) !important;
   border-radius: 6px !important; padding: 8px 10px 8px 16px; min-height: 72px; }
-.st-key-sec-check [data-testid="stSelectbox"] input { font-size: 30px !important; }
-.st-key-sec-check [data-testid="stSelectbox"] button svg { width: 34px; height: 34px; }
+.st-key-sec-pick [data-testid="stSelectbox"] input { font-size: 30px !important; }
+.st-key-sec-pick [data-testid="stSelectbox"] button svg { width: 34px; height: 34px; }
 @media (max-width: 760px) {
-  .st-key-sec-check [data-testid="stSelectbox"] [role="group"] { min-height: 60px; }
-  .st-key-sec-check [data-testid="stSelectbox"] input { font-size: 22px !important; }
+  .st-key-sec-pick [data-testid="stSelectbox"] [role="group"] { min-height: 60px; }
+  .st-key-sec-pick.st-key-sec-pick { padding: 0 16px 16px; margin-top: -40px; }
+  .st-key-sec-pick [data-testid="stSelectbox"] input { font-size: 22px !important; }
 }
 
 /* ---------- 01 · 3-day outlook (feature 1, Person A) ---------- */
@@ -243,6 +250,7 @@
 @media (max-width: 760px) {
   .nav { padding: 20px 16px; } .nav .links { display: none; }
   .hero-copy { left: 16px; right: 16px; top: 170px; }
+  .hero { background-position: 18% 70%; }
   .rail-left, .rail-right { display: none; }
   .eyebrow { gap: 14px; letter-spacing: 0.25em; font-size: 12px; } .eyebrow::before { width: 40px; }
   .section-head .num { left: -8px; font-size: 140px; }

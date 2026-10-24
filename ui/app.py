@@ -8,6 +8,7 @@ scored in risk_model.py with today's weather from the free Open-Meteo forecast A
 
 Run:  streamlit run ui/app.py
 """
+import base64
 import importlib
 from datetime import date
 from pathlib import Path
@@ -121,34 +122,10 @@ def gauge_svg(p):
     </svg>"""
 
 
-# Hero artwork: a dusk sky, the Koʻolau ridge, and layered ocean swells (inline SVG, no image files).
-HERO_SCENE = """
-<svg class="scene" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
-  <defs>
-    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1c3a4a"/><stop offset=".55" stop-color="#5d7f86"/>
-      <stop offset="1" stop-color="#d9b98a"/>
-    </linearGradient>
-    <radialGradient id="sun" cx=".72" cy=".56" r=".35">
-      <stop offset="0" stop-color="#fbd784" stop-opacity=".75"/><stop offset="1" stop-color="#fbd784" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#2f6f7a"/><stop offset="1" stop-color="#0b1d26"/>
-    </linearGradient>
-  </defs>
-  <rect width="1440" height="900" fill="url(#sky)"/>
-  <rect width="1440" height="900" fill="url(#sun)"/>
-  <path d="M0 520 L90 470 L160 430 L210 450 L270 380 L330 410 L390 330 L450 370 L520 300 L580 350
-           L640 290 L700 340 L770 310 L840 380 L920 360 L1000 420 L1080 400 L1170 450 L1260 440
-           L1360 480 L1440 470 L1440 560 L0 560 Z" fill="#2a4a4f" opacity=".85"/>
-  <path d="M0 540 L120 505 L230 520 L340 470 L470 500 L600 455 L720 495 L860 470 L990 510
-           L1120 490 L1260 520 L1440 500 L1440 580 L0 580 Z" fill="#1d3a3f"/>
-  <rect y="560" width="1440" height="340" fill="url(#sea)"/>
-  <ellipse cx="1040" cy="585" rx="220" ry="10" fill="#fbd784" opacity=".35"/>
-  <path d="M0 640 Q180 620 360 640 T720 640 T1080 640 T1440 640 V900 H0 Z" fill="#1f5663" opacity=".6"/>
-  <path d="M0 700 Q200 675 400 700 T800 700 T1200 700 T1600 700 V900 H0 Z" fill="#16414d" opacity=".75"/>
-  <path d="M0 770 Q220 745 440 770 T880 770 T1320 770 T1760 770 V900 H0 Z" fill="#0f2e39"/>
-</svg>"""
+@st.cache_data
+def hero_photo():
+    """The hero photo (Mokoliʻi from the Kualoa shore) as a data URL, so it ships inside the page."""
+    return "data:image/jpeg;base64," + base64.b64encode((APP_DIR / "assets" / "hero.jpg").read_bytes()).decode()
 
 
 def html(markup):
@@ -212,25 +189,23 @@ html(f"""<div class="official"><div class="official-text"><b>This is a forecast,
 # ------------------------------------------------------------------ Hero
 html(
     f"""
-<div class="hero">
-  {HERO_SCENE}
+<div class="hero" style="background-image:url('{hero_photo()}')">
   <nav class="nav">
     <div class="brand">KAI CHECK</div>
     <div class="links"><a href="#check">Beaches</a><a href="#why">How it works</a><a href="#map">Map</a><a href="#results">Results</a></div>
     <div><a href="#about">About</a></div>
   </nav>
-  <div class="rail-left">Data · Surfrider Blue Water Task Force</div>
-  <div class="rail-right">
-    <ol><li>Start</li><li>01</li><li>02</li><li>03</li><li>04</li></ol>
-    <div class="track"><span></span></div>
-  </div>
   <div class="hero-copy">
     <div class="eyebrow">A beach safety forecast</div>
     <h1>Know The Water<br>Before You Dive In</h1>
-    <div class="scroll-hint">scroll down &nbsp;↓</div>
   </div>
 </div>"""
 )
+
+# ------------------------------------------------------------------ Beach picker, right under the photo
+with st.container(key="sec-pick"):
+    st.session_state.setdefault("beach", beaches["beach_name"].iloc[4])
+    beach = st.selectbox("Choose your beach", beaches["beach_name"], key="beach")
 
 # ------------------------------------------------------------------ 01 · Check your beach
 with st.container(key="sec-check"):
@@ -243,8 +218,6 @@ with st.container(key="sec-check"):
             "above Hawaiʻi's safety limit (130 MPN/100 mL).",
             anchor="check",
         )
-        st.session_state.setdefault("beach", beaches["beach_name"].iloc[4])
-        beach = st.selectbox("Choose your beach", beaches["beach_name"], key="beach")
         row = beaches.set_index("beach_name").loc[beach]
         site = str(row.site_id)
         base = live[site] if live else typical
