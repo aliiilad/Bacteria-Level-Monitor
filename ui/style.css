@@ -56,8 +56,7 @@
 
 /* ---------- Sections ---------- */
 [class*="st-key-sec-"] { padding: 40px 10vw 80px; }
-.st-key-sec-why, .st-key-sec-alerts-x, .st-key-sec-results { background: var(--bg-soft); padding-top: 80px; }
-.st-key-sec-germ { background: var(--bg-raised); padding-top: 80px; }
+.st-key-sec-faq { background: var(--bg-soft); padding-top: 80px; }
 
 .eyebrow { display: none; }       /* short labels only where they help; titles carry the section */
 .section-head { position: relative; }
@@ -99,7 +98,7 @@
 .doh-link:hover { text-decoration: underline; }
 
 /* 01 · today's weather tiles and the reading key */
-.wx-head, .key-head, .germ-head, .sample-head, .outlook-head, .advice-head { font-size: 14px; font-weight: 700;
+.wx-head, .key-head, .germ-head, .outlook-head, .advice-head { font-size: 14px; font-weight: 700;
   color: var(--text); margin: 4px 0 10px; }
 .wx-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; max-width: 560px; }
 .wx { background: var(--bg-raised); border: 1px solid var(--line); border-radius: 14px; padding: 14px 12px; }
@@ -125,6 +124,24 @@
 .outlook .day em { display: block; height: 100%; border-radius: 2px; }
 .outlook-note { font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-top: 10px; }
 
+/* 02 · reasons, in plain sentences */
+.why-list { list-style: none; margin: 0; padding: 0; }
+.why-list li { display: grid; grid-template-columns: 22px 1fr; gap: 8px; padding: 12px 0; border-top: 1px solid var(--line);
+  font-size: 16px; line-height: 1.5; color: var(--text); }
+.why-list li:first-child { border-top: 0; padding-top: 0; }
+.why-list b { font-weight: 600; }
+.why-arrow { font-size: 15px; line-height: 1.6; }
+
+/* 04 · two big numbers */
+.vs { display: flex; align-items: center; justify-content: center; gap: 28px; margin: 18px 0 8px; }
+.vs-big { text-align: center; }
+.vs-big b { display: block; font-family: var(--head); font-weight: 700; font-size: 72px; line-height: 1; color: #9a8b80; }
+.vs-big.ours b { color: var(--accent); }
+.vs-big span { display: block; margin-top: 8px; font-size: 15px; font-weight: 600; color: var(--text-muted); }
+.vs-word { font-size: 18px; color: var(--text-muted); }
+.vs-line { color: var(--text); font-size: 15px; line-height: 1.65; margin: 16px 0 0; }
+@media (max-width: 760px) { .vs-big b { font-size: 54px; } .vs { gap: 18px; } }
+
 /* 02 · factor bars */
 .factor { margin-bottom: 24px; }
 .factor .row { display: flex; justify-content: space-between; font-size: 15px; margin-bottom: 8px; }
@@ -145,8 +162,6 @@
 .better-row { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-top: 6px;
   font-family: var(--head); font-weight: 700; font-size: 24px; line-height: 1.2; }
 .better-meta { margin-top: 4px; font-size: 14px; color: var(--text-muted); }
-.st-key-better-btn button { margin-top: 10px; min-height: 48px; }
-.st-key-better-btn button, .st-key-better-btn button p { color: #ffffff !important; font-weight: 600; font-size: 16px; }
 
 /* Where to swim today: photo cards with a status dot */
 [class*="st-key-sec-swim"] { padding-top: 0 !important; }
@@ -183,6 +198,12 @@
 .step h3 { font-family: var(--head); font-weight: 700; font-size: 19px; margin: 12px 0 8px; padding: 0; color: var(--text); }
 .step p { color: var(--text-muted); font-size: 15px; line-height: 1.6; margin: 0; }
 .center-title.left { text-align: left; }
+
+/* Map color key */
+.map-key { list-style: none; margin: 4px 0 8px; padding: 0; }
+.map-key li { display: flex; align-items: center; gap: 10px; font-size: 16px; color: var(--text); margin-bottom: 6px; }
+.map-key i { width: 14px; height: 14px; border-radius: 50%; }
+.map-tip { color: var(--text-muted); font-size: 15px; margin: 6px 0 0; }
 
 /* The bacteria */
 .germ-pic { margin: 0; text-align: center; }
@@ -225,14 +246,19 @@
 .st-key-sec-alerts [data-testid="stTextInput"] input { background: var(--bg-raised); color: var(--text); font-size: 17px; }
 .st-key-sec-alerts [data-testid="stFormSubmitButton"] button,
 .st-key-sec-alerts [data-testid="stFormSubmitButton"] button p { color: #ffffff !important; font-weight: 600; }
+/* "Sent!" card that replaces the form after a sign-up */
+.st-key-sec-alerts .sent { background: var(--bg-raised); border-radius: var(--radius); padding: 28px 26px 22px;
+  text-align: center; box-shadow: 0 12px 30px rgba(90, 30, 10, 0.25); }
+.sent-check { width: 64px; height: 64px; margin: 0 auto 12px; border-radius: 50%; background: var(--safe); color: #ffffff;
+  font-size: 34px; font-weight: 700; line-height: 64px; animation: pop 0.35s ease-out; }
+.sent-head { font-family: var(--head); font-weight: 700; font-size: 26px; color: var(--text); margin-bottom: 8px; }
+.st-key-sec-alerts .sent p { color: var(--text); font-size: 16px; line-height: 1.6; margin: 0 0 8px; }
+.st-key-sec-alerts .sent .sent-fine { color: var(--text-muted); font-size: 14px; margin: 0; }
+@keyframes pop { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .sent-check { animation: none; } }
+.st-key-alert-again button { margin-top: 12px; background: rgba(255, 255, 255, 0.92) !important; }
 .st-key-sec-alerts .soon-head { color: var(--accent); font-family: var(--head); font-size: 20px; font-weight: 700; margin-bottom: 8px; }
 .st-key-sec-alerts .soon p { color: var(--text-muted); font-size: 16px; line-height: 1.6; margin: 0; }
-.sample-mail { margin-top: 16px; padding: 18px 22px; border-radius: var(--radius); background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.35); color: #ffffff; }
-.sample-mail .sample-head { color: #ffffff; opacity: 0.85; }
-.sample-subject { font-weight: 700; font-size: 16px; margin-bottom: 6px; }
-.sample-mail p { font-size: 14px; line-height: 1.6; color: rgba(255, 255, 255, 0.9); margin: 0 0 6px; }
-.sample-fine { font-size: 12px !important; }
 
 /* ---------- 04 · Results chart ---------- */
 .card.chart { min-height: 0; }
@@ -254,8 +280,6 @@
 .limits > div { background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; }
 .limits h3 { font-family: var(--head); font-weight: 700; font-size: 19px; line-height: 1.3; margin: 0 0 10px; padding: 0; color: var(--text); }
 .limits p { color: var(--text-muted); font-size: 15px; line-height: 1.6; margin: 0; }
-.st-key-sec-limits .eyebrow { display: block; font-family: var(--head); font-weight: 700; font-size: 30px;
-  text-align: center; margin-bottom: 28px; color: var(--text); }
 
 /* ---------- Footer ---------- */
 .site-footer { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 48px; padding: 64px 10vw 48px;
@@ -268,18 +292,46 @@
 .site-footer a:hover { text-decoration: underline; }
 .site-footer .copy { grid-column: 1 / -1; font-size: 13px; color: rgba(255, 255, 255, 0.65); }
 
+/* ---------- Questions: college-style dropdowns ---------- */
+.st-key-sec-faq [data-testid="stExpander"] { max-width: 860px; margin: 0 auto 12px; }
+.st-key-sec-faq [data-testid="stExpander"] details { border: 1px solid var(--line) !important; border-radius: 14px !important;
+  background: var(--bg-raised); box-shadow: var(--shadow); }
+.st-key-sec-faq [data-testid="stExpander"] summary { padding: 18px 22px !important; }
+.st-key-sec-faq [data-testid="stExpander"] summary p { font-family: var(--head); font-weight: 700; font-size: 18px !important;
+  color: var(--text) !important; }
+.st-key-sec-faq [data-testid="stExpander"] summary:hover p { color: var(--accent) !important; }
+.st-key-sec-faq [data-testid="stExpanderDetails"] { padding: 4px 22px 20px !important; }
+.faq-p, .faq-fine { color: var(--text); font-size: 16px; line-height: 1.65; margin: 0 0 12px; }
+.faq-fine { color: var(--text-muted); font-size: 14px; margin-top: 12px; }
+.faq-list { margin: 0; padding-left: 20px; } .faq-list li { font-size: 16px; line-height: 1.65; margin-bottom: 6px; }
+.faq-limits h3 { font-family: var(--head); font-weight: 700; font-size: 17px; margin: 14px 0 4px; padding: 0; color: var(--text); }
+.faq-limits h3:first-child { margin-top: 0; }
+.faq-limits p { color: var(--text-muted); font-size: 15px; line-height: 1.6; margin: 0; }
+.st-key-sec-faq .key { margin-top: 0; max-width: none; border: 0; padding: 0; }
+.st-key-sec-faq .key-head { display: none; }
+.st-key-sec-faq .steps { box-shadow: none; }
+.st-key-sec-faq .official-btn { display: inline-block; }
+.st-key-sec-faq a { color: var(--accent) !important; }
+.st-key-sec-faq a.official-btn { color: #ffffff !important; }
+.contact { font-size: 15px !important; }
+.st-key-sec-alerts .contact a { color: #ffffff !important; font-weight: 600; }
+
+/* Pop-up after clicking a link in an email */
+.link-result { text-align: center; padding: 4px 0 8px; }
+.link-result p { font-size: 16px; line-height: 1.6; color: var(--text); margin: 0; }
+.sent-check.info { background: var(--accent); font-family: Georgia, serif; font-style: italic; }
+
 /* ---------- About the team (Person A) ---------- */
 /* Styles for the About section go here, phone-width rules too (in their own @media). */
 
 /* ---------- Wave edges between differently colored sections ---------- */
-.st-key-sec-why, .st-key-sec-germ, .st-key-sec-map, .st-key-sec-alerts, .st-key-sec-results, .st-key-sec-limits {
+.st-key-sec-map, .st-key-sec-alerts, .st-key-sec-faq {
   position: relative; overflow: visible !important; }
-.st-key-sec-why::before, .st-key-sec-germ::before, .st-key-sec-map::before, .st-key-sec-alerts::before,
-.st-key-sec-results::before, .st-key-sec-limits::before {
+.st-key-sec-map::before, .st-key-sec-alerts::before, .st-key-sec-faq::before {
   content: ""; position: absolute; left: 0; right: 0; top: -38px; height: 40px; background: inherit;
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 40' preserveAspectRatio='none'%3E%3Cpath d='M0 40V22C180 2 360 2 540 18S900 38 1080 20 1350 4 1440 14V40Z'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
           mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 40' preserveAspectRatio='none'%3E%3Cpath d='M0 40V22C180 2 360 2 540 18S900 38 1080 20 1350 4 1440 14V40Z'/%3E%3C/svg%3E") center / 100% 100% no-repeat; }
-.st-key-sec-map, .st-key-sec-limits { background: var(--bg); }
+.st-key-sec-map { background: var(--bg); }
 .st-key-sec-alerts::before { background: var(--sunset); }
 
 /* ---------- Phone widths ---------- */
@@ -301,6 +353,13 @@
   .limits { grid-template-columns: 1fr; gap: 14px; }
   .bar-row .tip { white-space: normal; left: 0; }
   .swim-title { font-size: 26px; }
+  /* compact cards on phones: small whole photo on the left, text on the right */
+  .swim-card { display: grid; grid-template-columns: 112px 1fr; align-items: center; }
+  .swim-pic { padding: 10px 0 10px 10px; } .swim-pic img { border-radius: 10px; }
+  .swim-pic.none { aspect-ratio: auto; height: 76px; margin: 10px 0 10px 10px; border-radius: 10px; }
+  .swim-body { padding: 10px 14px; }
+  .swim-name { font-size: 17px; } .swim-status { margin-top: 4px; font-size: 14px; } .swim-meta { font-size: 13px; }
+  .swim-credit { margin-top: 4px; font-size: 10px; }
   .outlook .days { gap: 6px; } .outlook .day { padding: 8px 4px 10px; } .outlook .day b { font-size: 20px; }
   .site-footer { grid-template-columns: 1fr; padding: 48px 16px 36px; }
 }

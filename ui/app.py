@@ -30,6 +30,7 @@ importlib.reload(alerts)
 
 APP_DIR = Path(__file__).parent
 BEACHES_CSV = APP_DIR.parent / "data" / "processed" / "beaches.csv"
+CONTACT_EMAIL = "beachalerts.team@gmail.com"  # team inbox; also sends the alerts
 DOH_URL = "https://health.hawaii.gov/cwb/"  # official Hawaiʻi DOH beach advisories (Clean Water Branch)
 CAUTION_AT, UNSAFE_AT = 0.30, 0.60  # risk bands: lower risk / caution / likely unsafe
 
@@ -40,15 +41,8 @@ INPUTS = {
     "temp_mean": ("Mean temperature today", "°C", 0.1, "%.1f"),
     "wind_max": ("Max wind today", "km/h", 1.0, "%.0f"),
 }
-FACTOR_LABELS = {
-    "beach": "This beach's track record",
-    "rain_prev_7days": "Rain, past 7 days",
-    "days_since_rain": "Dry days in a row",
-    "temp_mean": "Temperature",
-    "wind_max": "Wind",
-}
 
-st.set_page_config(page_title="Kai Check · Oʻahu", page_icon="🌊", layout="wide")
+st.set_page_config(page_title="Kai Check Oʻahu", page_icon="🌊", layout="wide")
 st.markdown(f"<style>{(APP_DIR / 'style.css').read_text()}</style>", unsafe_allow_html=True)
 
 
@@ -105,6 +99,18 @@ def weather_line(f):
             f"{f['temp_mean']:.0f}°C · wind up to {f['wind_max']:.0f} km/h")
 
 
+def reason_label(name, f):
+    """A factor in plain words, with today's value where it helps."""
+    dry = int(f["days_since_rain"])
+    return {
+        "beach": "This beach's track record",
+        "rain_prev_7days": f"{f['rain_prev_7days']:.0f} mm of rain this week",
+        "days_since_rain": f"{dry} dry day{'s' if dry != 1 else ''} in a row",
+        "temp_mean": f"{f['temp_mean']:.0f}°C average temperature",
+        "wind_max": f"Wind up to {f['wind_max']:.0f} km/h",
+    }[name]
+
+
 def weather_tiles(f):
     """Today's four model inputs as small tiles (section 01)."""
     dry = int(f["days_since_rain"])
@@ -115,14 +121,14 @@ def weather_tiles(f):
     cells = "".join(f'<div class="wx"><b>{v}<small> {u}</small></b><span>{label}</span></div>'
                     for v, u, label in tiles)
     return (f'<div class="wx-head">Today\'s weather at this beach</div><div class="wx-row">{cells}</div>'
-            '<div class="wx-src">Forecast from Open-Meteo, updated hourly.</div>')
+            '<div class="wx-src">From Open-Meteo, a free weather forecast service. Updated hourly.</div>')
 
 
 READ_KEY = """<div class="key"><div class="key-head">How to read the number</div>
   <div class="key-row"><i style="background:var(--safe)"></i><span><b>Under 30%: lower risk.</b>
     Bacteria are likely under the limit. Still skip murky water.</span></div>
   <div class="key-row"><i style="background:var(--caution)"></i><span><b>30–60%: caution.</b>
-    Could go either way. Avoid stream mouths, or pick a lower-risk beach.</span></div>
+    Avoid spots where streams or storm drains flow into the ocean, or pick a lower-risk beach.</span></div>
   <div class="key-row"><i style="background:var(--unsafe)"></i><span><b>Over 60%: likely unsafe.</b>
     Stay out of the water today.</span></div></div>"""
 
@@ -211,13 +217,6 @@ def html(markup):
     st.markdown("\n".join(line.strip() for line in markup.splitlines()), unsafe_allow_html=True)
 
 
-def section_head(num, eyebrow, title, body, anchor=""):
-    html(
-        f"""<div class="section-head" id="{anchor}"><div class="num">{num}</div>
-        <div class="eyebrow">{eyebrow}</div><h2>{title}</h2><p>{body}</p></div>"""
-    )
-
-
 beaches = load_beaches()
 model = load_model()
 site_points = tuple((str(s), tuple(model["weather_points"][str(s)])) for s in beaches.site_id)
@@ -231,6 +230,13 @@ test = model["test"]
 typical = risk_model.typical_features(model)
 today_risks = {str(s): risk_model.predict(model, s, live[str(s)] if live else typical)[0]
                for s in beaches.site_id}
+
+@st.dialog("Email alerts")
+def link_result(icon, title, body):
+    """Pop-up after someone clicks the confirm or unsubscribe link in an email."""
+    html(f"""<div class="link-result"><div class="sent-check {icon}">{'&#10003;' if icon == 'ok' else 'i'}</div>
+        <div class="sent-head">{title}</div><p>{body}</p></div>""")
+
 
 # Email links: ?confirm=<token> starts alerts, ?unsubscribe=<token> stops them.
 beach_names = {str(b.site_id): b.beach_name for b in beaches.itertuples()}
@@ -248,13 +254,24 @@ for action in ("confirm", "unsubscribe"):
     except Exception:
         st.error("Sorry, something went wrong with that link. Please try again later.")
         break
+    st.query_params.clear()  # so a refresh doesn't use the link again
+    name = beach_names.get(str(found["site_id"]), "your beach") if found else ""
     if not found:
-        st.info("That link has already been used or has expired.")
+        link_result("info", "This link was already used",
+                    "It may have expired, or you already clicked it. Sign up again in the alerts section if you need to.")
     elif action == "confirm":
-        st.success(f"Alerts are on for {beach_names.get(found['site_id'], 'your beach')}. "
-                   "We'll email you the morning it turns risky, and again when it's back to lower risk.")
+        try:  # a welcome email, so there's a record of what they signed up for and how to stop it
+            alerts.send_email(settings, found["email"], *alerts.welcome_email(
+                name, float(found["level"]), alerts.base_url(settings["APP_URL"]),
+                alerts.link(settings["APP_URL"], unsubscribe=found["token"])))
+        except Exception:
+            pass  # they're confirmed either way
+        link_result("ok", "You're signed up!",
+                    f"You'll get an email the morning <b>{name}</b> turns risky, and one more when it's back "
+                    "to lower risk. Every email has an unsubscribe link. We just sent you a welcome email too.")
     else:
-        st.success(f"You're unsubscribed from alerts for {beach_names.get(found['site_id'], 'that beach')}.")
+        link_result("ok", "You're unsubscribed",
+                    f"You won't get any more alerts for <b>{name}</b>, and we deleted your email from our list.")
     break
 
 # ------------------------------------------------------------------ Hero
@@ -262,9 +279,9 @@ html(
     f"""
 <div class="hero" style="background-image:url('{hero_photo()}')">
   <nav class="nav">
-    <div class="brand">Safe Beaches Oʻahu</div>
-    <div class="links"><a href="#check">Beaches</a><a href="#why">How it works</a><a href="#map">Map</a><a href="#results">Results</a></div>
-    <div><a href="#about">About</a></div>
+    <div class="brand">Kai Check Oʻahu</div>
+    <div class="links"><a href="#check">Forecast</a><a href="#map">Map</a><a href="#alerts">Alerts</a></div>
+    <div><a href="#faq">Questions</a></div>
   </nav>
   <div class="hero-copy">
     <h1>Is it safe to swim today?</h1>
@@ -281,22 +298,19 @@ with st.container(key="sec-pick"):
     # Official advisories come before any number we show
     html(f"""<div class="official"><div class="official-text"><b>This is a forecast, not an official
         advisory.</b> Always check the Hawaiʻi Department of Health's current beach advisories first,
+        including Brown Water Advisories after heavy rain,
         and follow any posted signs.</div>
         <a class="official-btn" href="{DOH_URL}" target="_blank" rel="noopener">Official DOH advisories &rarr;</a></div>""")
 
-# ------------------------------------------------------------------ 01 · Check your beach
+# ------------------------------------------------------------------ 01 · Today's forecast
 with st.container(key="sec-check"):
     text_col, _, card_col = st.columns([5, 1, 4])
     with text_col:
-        section_head(
-            "01", "Today's forecast", "What the rain means<br>for the water",
-            "Lab tests happen only every two weeks, but rain washes bacteria into the ocean "
-            "within hours. We turn recent weather into today's chance that enterococcus is "
-            "above Hawaiʻi's safety limit (130 MPN/100 mL).",
-            anchor="check",
-        )
         row = beaches.set_index("beach_name").loc[beach]
         site = str(row.site_id)
+        html(f"""<div class="section-head" id="check"><h2>Today at {beach}</h2>
+            <p>Rain washes bacteria into the ocean within hours, so we turn the past week's weather
+            into today's chance of high bacteria.</p></div>""")
         base = live[site] if live else typical
         if live:
             html(weather_tiles(base))
@@ -310,7 +324,6 @@ with st.container(key="sec-check"):
                 lo, hi = model["features"][name]["min"], model["features"][name]["max"]
                 features[name] = st.slider(f"{label} ({unit})", lo, hi, min(max(base[name], lo), hi),
                                            step, format=fmt, key=f"{name}-{site}")
-        html(READ_KEY)
 
     prob, pushes = risk_model.predict(model, site, features)
     verdict, color = band(prob)
@@ -337,9 +350,9 @@ with st.container(key="sec-check"):
             days += f"""<div class="day{' unsure' if unsure else ''}"><span>{name}{'*' if unsure else ''}</span>
                 <b style="color:{risk_color(p)}">{p:.0%}</b>
                 <i><em style="width:{p * 100:.0f}%;background:{risk_color(p)}"></em></i></div>"""
-        outlook_html = f"""<div class="outlook"><div class="outlook-head">3-day outlook</div>
+        outlook_html = f"""<div class="outlook"><div class="outlook-head">3-day bacteria outlook</div>
             <div class="days">{days}</div>
-            <div class="outlook-note">* Less certain: forecast rain gets less reliable further out.</div></div>"""
+            <div class="outlook-note">* Less certain: these use rain forecasts further ahead, which are less accurate, so the bacteria forecast is less certain too.</div></div>"""
 
     # Feature 2 (Person B): "What should I do?" + safer beach.
     advice_html = ""
@@ -356,7 +369,7 @@ with st.container(key="sec-check"):
         alt = recommend.safer_beach(site, beaches.to_dict("records"), today_risks, below=CAUTION_AT)
         suggestion = (f"""<div class="better"><div class="better-head">Better option today</div>
             <div class="better-row"><span>{alt['beach_name']}</span><span>{alt['risk']:.0%}</span></div>
-            <div class="better-meta">Lower risk · {alt['km']:.0f} km away (straight line)</div></div>"""
+            <div class="better-meta">Lower risk · {alt['km']:.0f} km from {beach}</div></div>"""
                       if alt else '<div class="safer-note">No beach we track is lower risk today.</div>')
     better = suggestion if alt else ""   # the gold box goes first; notes go under the advice
     advice_html = f"""{better}<div class="advice"><div class="advice-head">What should I do?</div>
@@ -371,15 +384,8 @@ with st.container(key="sec-check"):
               <div class="verdict" style="color:{color}">FORECAST: {verdict}</div>
               <a class="doh-link" href="{DOH_URL}" target="_blank" rel="noopener">Check today's official DOH
               advisories for this beach &rarr;</a>{advice_html}{outlook_html}
-              <div class="fine">Historically, {row.n_unsafe} of {row.n_samples} samples here
-              ({row.unsafe_pct:.0f}%) were over the limit ({row.first_year}–{row.last_year}).
-              <br><br><b>A forecast from weather, not a lab test or an official advisory.</b> If DOH
-              has posted an advisory for this beach, follow it, whatever this forecast says.</div>
             </div>"""
         )
-        if alt:
-            st.button(f"Check {alt['beach_name']} instead  →", key="better-btn", type="primary",
-                      on_click=pick_beach, args=(alt["beach_name"],), width="stretch")
 
 # ------------------------------------------------------------------ Where to swim today
 # Lower-risk beaches nearest the selected one, each with a button that switches to it. Real
@@ -402,94 +408,22 @@ with st.container(key="sec-swim"):
                 html(f"""<div class="swim-card">{pic}<div class="swim-body">
                     <div class="swim-name">{b['beach_name']}</div>
                     <div class="swim-status"><i style="background:{risk_color(b['risk'])}"></i>{band(b['risk'])[0].capitalize()} · {b['risk']:.0%}</div>
-                    <div class="swim-meta">{b['region']} Shore · {b['km']:.0f} km away</div>
+                    <div class="swim-meta">{b['region']} Shore · {b['km']:.0f} km from {beach}</div>
                     {f'<div class="swim-credit">{credit}</div>' if credit else ''}</div></div>""")
                 st.button("Check this beach  →", key=f"swim-{b['site_id']}", on_click=pick_beach,
                           args=(b["beach_name"],), width="stretch")
 
-# ------------------------------------------------------------------ How it works (3 steps)
-with st.container(key="sec-steps"):
-    html(f"""<h2 class="center-title left">How it works</h2><div class="steps">
-        <div class="step"><div class="step-num">1</div><h3>We read today's weather</h3>
-          <p>Rain over the past week, dry days in a row, temperature, and wind at each beach, from Open-Meteo.</p></div>
-        <div class="step"><div class="step-num">2</div><h3>Our model scores each beach</h3>
-          <p>Trained on {model['n_train']:,} Surfrider water samples from {model['train_years'][0]}–{model['train_years'][1]}, and tested on {test['n']} newer ones.</p></div>
-        <div class="step"><div class="step-num">3</div><h3>You get a forecast</h3>
-          <p>The chance of high bacteria today, what to do about it, and lower-risk beaches nearby.</p></div>
-        </div>""")
-
-# ------------------------------------------------------------------ 02 · Why this score
-with st.container(key="sec-why"):
-    card_col, _, text_col = st.columns([4, 1, 5], vertical_alignment="center")
-    biggest = max(abs(v) for v in pushes.values()) or 1
-    factors = ""
-    for name, push in sorted(pushes.items(), key=lambda kv: -abs(kv[1])):
-        if abs(push) <= 0.05:
-            effect, tint = "little effect", "var(--text-muted)"
-        else:
-            effect, tint = ("raises risk", "var(--unsafe)") if push > 0 else ("lowers risk", "var(--safe)")
-        factors += f"""<div class="factor"><div class="row"><b>{FACTOR_LABELS[name]}</b>
-            <span style="color:{tint}">{effect}</span></div>
-            <div class="bar"><span style="width:{abs(push) / biggest * 100:.0f}%;background:{tint}"></span></div></div>"""
-    top = max(pushes, key=lambda k: abs(pushes[k]))
-    why = (f"Biggest factor today: <b>{FACTOR_LABELS[top].lower()}</b>, which "
-           f"{'raises' if pushes[top] > 0 else 'lowers'} the risk compared with an average beach and day.")
-    with card_col:
-        html(f"""<div class="card"><div class="label">What moved the needle</div>
-            <div class="beach">{beach}</div>{factors}<div class="fine">{why}</div></div>""")
-    with text_col:
-        section_head(
-            "02", "What's driving it", "Why this number?",
-            "Rain washes soil, sewage, and animal waste into the surf, and some beaches, like "
-            "those near stream mouths, run high most of the time. Each bar shows how much one "
-            "factor pushed today's number up or down compared with an average beach and day. "
-            f"Tested on {test['n']} samples from {test['years'][0]}–{str(test['years'][1])[2:]} "
-            f"that the model never saw, flagging at 30% caught "
-            f"{test['flag_at_30']['recall']:.0%} of the unsafe ones.",
-            anchor="why",
-        )
-        st.markdown('<a class="read-more" href="#results">how well it works &nbsp;→</a>',
-                    unsafe_allow_html=True)
-
-# ------------------------------------------------------------------ The bacteria
-with st.container(key="sec-germ"):
-    pic_col, _, text_col = st.columns([4, 1, 6], vertical_alignment="center")
-    with pic_col:
-        html(f"""<figure class="germ-pic"><img src="{asset_url('enterococcus.jpg')}"
-            alt="Enterococcus bacteria under a microscope: small dark purple ovals in pairs and short chains">
-            <figcaption>Enterococcus under a microscope: the small dark purple ovals, in pairs and short
-            chains, in a stained tissue sample.<br>Image: CDC / Dr. Mike Miller (PHIL #2899), public domain,
-            via <a href="https://commons.wikimedia.org/w/index.php?curid=1670351" target="_blank" rel="noopener">Wikimedia Commons</a>.</figcaption></figure>""")
-    with text_col:
-        section_head(
-            "", "The bacteria", "What is enterococcus?",
-            "Enterococcus are bacteria that live in the guts of people and animals. They usually "
-            "aren't what makes swimmers sick. But lots of them in the ocean means sewage or animal "
-            "waste got into the water, along with the germs that do cause illness. That's why "
-            "Hawaiʻi's Department of Health tests for them.",
-            anchor="bacteria",
-        )
-        html("""<div class="germ-list"><div class="germ-head">Swimming in water over the limit can cause</div>
-            <ul><li><b>Stomach illness</b>, the most common: nausea, vomiting, diarrhea, stomach pain, fever</li>
-            <li><b>Ear, eye, nose, and throat infections</b></li>
-            <li><b>Skin rashes</b> and itching</li></ul>
-            <p>Kids, older adults, and people with weaker immune systems get sick more easily, and
-            swallowing water or staying in longer raises the risk.</p>
-            <div class="germ-links">Read more:
-            <a href="https://www.epa.gov/national-aquatic-resource-surveys/indicators-enterococci" target="_blank" rel="noopener">EPA: enterococci &rarr;</a>
-            <a href="https://beachapedia.org/Bacteria:_enterococcus" target="_blank" rel="noopener">Surfrider Beachapedia &rarr;</a></div></div>""")
-
-# ------------------------------------------------------------------ 03 · Map
+# ------------------------------------------------------------------ Map
 with st.container(key="sec-map"):
     text_col, _, map_col = st.columns([4, 1, 6], vertical_alignment="center")
     with text_col:
-        section_head(
-            "03", "Map", "Every beach we track,<br>side by side",
-            ("Each dot is today's risk at that beach from the live forecast. "
-             if live else "Live weather is unavailable, so dots show risk on a typical day. ")
-            + "Green is lower risk, orange is caution, red is likely unsafe. Tap a dot for details.",
-            anchor="map",
-        )
+        html(f"""<div class="section-head" id="map"><h2>Every beach at a glance</h2>
+            <p>{"Each dot is today's risk at that beach." if live else
+                "Live weather is unavailable, so dots show risk on a typical day."}</p></div>""")
+        html("""<ul class="map-key"><li><i style="background:var(--safe)"></i>Green: lower risk</li>
+            <li><i style="background:var(--caution)"></i>Orange: caution</li>
+            <li><i style="background:var(--unsafe)"></i>Red: likely unsafe</li></ul>
+            <p class="map-tip">Tap a dot for details.</p>""")
     with map_col:
         rgb = {"LOWER RISK": [21, 128, 61], "CAUTION": [217, 130, 0], "LIKELY UNSAFE": [212, 45, 45]}  # --safe/--caution/--unsafe
         rows = []
@@ -531,20 +465,25 @@ with st.container(key="sec-map"):
 with st.container(key="sec-alerts"):
     text_col, _, form_col = st.columns([5, 1, 5])
     with text_col:
-        section_head(
-            "", "Track my beach", "Get a heads-up when your beach turns risky",
-            "Pick the beach you swim at and a level. Every morning at about 5:30am we check the "
-            "forecast, and email you only the morning it crosses your level, with how long it may "
-            "stay risky and lower-risk beaches nearby. You get one more email when it's back to "
-            "lower risk.",
-            anchor="alerts",
-        )
+        html(f"""<div class="section-head" id="alerts"><h2>Get a heads-up when your beach turns risky</h2>
+            <p>Pick your beach. We'll email you the morning it turns risky, and once more when it's
+            back to lower risk. Nothing on the days in between.</p>
+            <p class="contact">Questions? Email <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a></p></div>""")
     with form_col:
         settings = alert_settings()
         if alerts.missing_settings(settings):  # accounts not set up yet: no form to fill in for nothing
             html("""<div class="soon"><div class="soon-head">Coming soon</div>
                 <p>Email alerts are almost ready. Until then, check this page and the official DOH
                 advisories before you swim.</p></div>""")
+        elif "alert_sent" in st.session_state:  # just signed up: show a clear "sent" state instead of the form
+            sent = st.session_state["alert_sent"]
+            html(f"""<div class="sent"><div class="sent-check">&#10003;</div><div class="sent-head">Sent!</div>
+                <p>We emailed a confirmation link to <b>{sent['email']}</b> for <b>{sent['beach']}</b>.
+                Click it to turn your alerts on.</p>
+                <p class="sent-fine">Don't see it? Check your spam folder and mark it "Not spam" (links
+                don't work in spam). Adding {CONTACT_EMAIL} to your contacts keeps later alerts in your inbox.</p></div>""")
+            st.button("Track another beach", key="alert-again", width="stretch",
+                      on_click=lambda: st.session_state.pop("alert_sent", None))
         else:
             with st.form("alert-form"):
                 email = st.text_input("Email", placeholder="you@example.com")
@@ -553,8 +492,7 @@ with st.container(key="sec-alerts"):
                 level = st.radio("Email me when risk is", list(alerts.LEVELS), format_func=alerts.LEVELS.get)
                 submitted = st.form_submit_button("Send me a confirmation email", type="primary",
                                                   width="stretch")
-            st.caption("We store only your email, the beach, and your level, nothing else. Alerts start after "
-                       "you click the link in the confirmation email, and every email has an unsubscribe link.")
+            st.caption("We store only your email, beach, and level. Every email has an unsubscribe link.")
             if submitted:
                 signups = st.session_state.get("alert_signups", 0)
                 if not alerts.valid_email(email):
@@ -566,85 +504,158 @@ with st.container(key="sec-alerts"):
                 else:
                     site_id = str(beaches.set_index("beach_name").loc[track, "site_id"])
                     try:
-                        token = alerts.SupabaseStore(settings).add(email.strip().lower(), site_id, level)
-                        alerts.send_email(settings, email.strip(), *alerts.confirmation_email(
-                            track, level, alerts.link(settings["APP_URL"], confirm=token)))
+                        with st.spinner("Sending your confirmation email…"):
+                            token = alerts.SupabaseStore(settings).add(email.strip().lower(), site_id, level)
+                            alerts.send_email(settings, email.strip(), *alerts.confirmation_email(
+                                track, level, alerts.link(settings["APP_URL"], confirm=token),
+                                alerts.link(settings["APP_URL"], unsubscribe=token)))
                     except Exception:
                         st.error("Sorry, we couldn't sign you up right now. Please try again later.")
                     else:
                         st.session_state["alert_signups"] = signups + 1
-                        st.success(f"Almost done: check {email.strip()} for a confirmation link "
-                                   "(it may land in your spam folder).")
-        html("""<div class="sample-mail"><div class="sample-head">Example alert</div>
-            <div class="sample-subject">Forecast: high bacteria risk at Kailua Beach Park today (64%)</div>
-            <p>Our forecast shows it staying at caution or worse through Sunday.<br>
-            Lower-risk beach nearby today: Kaʻalāwai / Cromwell's, 12%, 15 km away.</p>
-            <p class="sample-fine">A forecast, not an official advisory · Unsubscribe anytime</p></div>""")
+                        st.session_state["alert_sent"] = {"email": email.strip(), "beach": track}
+                        st.rerun()
 
-# ------------------------------------------------------------------ 04 · How well it works
-comparison = test["comparison"]
-beach_only = next(c for c in comparison if c["name"] == "Beach only")
-with st.container(key="sec-results"):
-    text_col, _, card_col = st.columns([5, 1, 5], vertical_alignment="center")
-    with text_col:
-        section_head(
-            "04", "How well it works", "Does it actually work?",
-            f"We trained on {model['train_years'][0]}–{model['train_years'][1]} and held back "
-            f"{test['n']} samples from {test['years'][0]}–{str(test['years'][1])[2:]}, "
-            f"{test['n_unsafe']} of them unsafe. A rule that only warns on flash-flood-level rain "
-            f"caught {comparison[0]['recall']:.0%} of the unsafe ones. Our model, flagging at 30% "
-            f"risk, caught {test['flag_at_30']['recall']:.0%}.",
-            anchor="results",
-        )
-    with card_col:
-        rows = ""
-        for c in comparison:
-            ours = c["name"] == "Our model"
-            auc = f" · AUC {c['auc']:.2f}" if c["auc"] is not None else ""
-            rows += f"""<div class="bar-row" tabindex="0">
-                <div class="top"><span><b>{c['name']}</b> <span class="note">{c['note']}</span></span>
-                <span class="value">{c['recall']:.0%}</span></div>
-                <div class="track"><span class="fill{' ours' if ours else ''}" style="width:{c['recall'] * 100:.1f}%"></span></div>
-                <div class="tip">{c['precision']:.0%} of its flags were really unsafe{auc}</div></div>"""
-        html(f"""<div class="card chart"><div class="label">Share of unsafe samples caught</div>
-            <div class="beach">{test['years'][0]}–{str(test['years'][1])[2:]} test samples</div>{rows}
-            <div class="fine">Hover or tap a bar for how often its warnings were right.</div></div>""")
-        with st.expander("Show as table"):
-            st.dataframe(pd.DataFrame([{
-                "Approach": f"{c['name']} ({c['note']})",
-                "Unsafe caught": f"{c['recall']:.0%}",
-                "Flags that were unsafe": f"{c['precision']:.0%}",
-                "AUC": "–" if c["auc"] is None else f"{c['auc']:.2f}",
-            } for c in comparison]), hide_index=True, width="stretch")
-
-# ------------------------------------------------------------------ Limits
+# ------------------------------------------------------------------ Questions (dropdowns)
+# The main page stays short; the details live here.
+comparison = [dict(c, name="Heavy-rain rule") if c["name"] == "Flash-flood stand-in" else c
+              for c in test["comparison"]]
 LIMITS = [
-    ("The beach does most of the work",
-     f"Knowing the beach alone scores an AUC of {beach_only['auc']:.2f}. Weather adds about "
-     f"{test['auc'] - beach_only['auc']:.2f} on top. Rain matters, but some spots run high almost always."),
-    ("Storm days are rare in the data",
-     "Volunteers sample every two weeks on a fixed schedule, so few samples land right after "
-     "big storms. The model has seen the worst days least."),
-    ("The baseline is a stand-in",
-     "There is no archive of real flash-flood warnings to test against, so the comparison uses "
-     "days with 25 mm or more of rain as an approximation."),
-    ("A forecast, not a lab test",
-     f"About {model['n_train'] + test['n']:,} samples at {len(model['site_offsets'])} beaches is a small "
-     "dataset. Always follow posted Department of Health advisories."),
+    ("Where you swim matters most",
+     "Some beaches test high almost every time, even without rain, so the beach itself tells you "
+     "more than the weather does, contrary to our first guess. Our model gets most of its accuracy "
+     "from each beach's track record rather than the weather. Rain still matters, just less than "
+     "we expected."),
+    ("Few tests right after storms",
+     "Volunteers test every two weeks on a set schedule, not after storms, so few tests happened "
+     "right after heavy rain. The model learns from past examples, so it has the least practice "
+     "on the stormy days that matter most and could be off on them."),
+    ("We approximated the warnings",
+     "Instead of the state's real past flash-flood warnings, we compared against days with heavy "
+     "rain (25 mm or more), which is roughly when those warnings go out. Real warnings are archived "
+     "by the Iowa Environmental Mesonet; testing against them is our next step, and they might "
+     "catch a few more or fewer unsafe days."),
+    ("More data would help",
+     f"We had about {model['n_train'] + test['n']:,} water tests from {len(model['site_offsets'])} sites. "
+     "Ideally there would be daily tests at every beach, especially right after storms, so the "
+     "model could learn from many more risky days."),
 ]
-with st.container(key="sec-limits"):
-    html('<div class="eyebrow" id="limits">Know the limits</div><div class="limits">'
-         + "".join(f"<div><h3>{t}</h3><p>{b}</p></div>" for t, b in LIMITS) + "</div>")
+with st.container(key="sec-faq"):
+    html('<h2 class="center-title" id="faq">Questions</h2>')
+
+    with st.expander("How do I read the number?"):
+        html(READ_KEY)
+
+    with st.expander(f"Why did {beach} get this number?"):
+        biggest = max(abs(v) for v in pushes.values()) or 1
+        reasons = ""
+        for rank, (name, push) in enumerate(sorted(pushes.items(), key=lambda kv: -abs(kv[1]))):
+            if abs(push) <= 0.05:
+                arrow, tint, how = "•", "var(--text-muted)", "barely matters today"
+            else:
+                up = push > 0
+                arrow, tint = ("▲", "var(--unsafe)") if up else ("▼", "var(--safe)")
+                size = ("the biggest reason it's " + ("high" if up else "low")) if rank == 0 else (
+                    ("raises" if up else "lowers") + (" it a lot" if abs(push) > biggest / 2 else " it a little"))
+                how = size
+            reasons += f"""<li><span class="why-arrow" style="color:{tint}">{arrow}</span>
+                <span><b>{reason_label(name, features)}</b>: {how}</span></li>"""
+        html(f"""<ul class="why-list">{reasons}</ul>
+            <p class="faq-fine">Compared with an average beach on an average day. In past lab tests here,
+            {row.unsafe_pct:.0f}% were over the safety limit ({row.n_unsafe} of {row.n_samples} tests,
+            {row.first_year}–{row.last_year}).</p>""")
+
+    with st.expander("How does the forecast work?"):
+        html(f"""<div class="steps">
+            <div class="step"><div class="step-num">1</div><h3>We read the weather</h3>
+              <p>Rain over the past week, dry days in a row, temperature, and wind at each beach, from
+              Open-Meteo, a free weather forecast service.</p></div>
+            <div class="step"><div class="step-num">2</div><h3>Our model scores each beach</h3>
+              <p>Trained on {model['n_train']:,} Surfrider water samples from {model['train_years'][0]}–{model['train_years'][1]},
+              and tested on {test['n']} newer ones.</p></div>
+            <div class="step"><div class="step-num">3</div><h3>You get a forecast</h3>
+              <p>The chance of high bacteria today, what to do about it, and lower-risk beaches nearby.</p></div>
+            </div>
+            <p class="faq-fine">Volunteers test the water only every two weeks, but rain washes bacteria
+            into the ocean within hours. That's the gap a weather-based forecast fills.</p>""")
+
+    with st.expander("What is enterococcus, and can it make me sick?"):
+        pic_col, text_col = st.columns([2, 3])
+        with pic_col:
+            html(f"""<figure class="germ-pic"><img src="{asset_url('enterococcus.jpg')}"
+                alt="Enterococcus bacteria under a microscope: small dark purple ovals in pairs and short chains">
+                <figcaption>Enterococcus under a microscope: the small dark purple ovals, in a stained
+                tissue sample. Image: CDC / Dr. Mike Miller (PHIL #2899), public domain, via
+                <a href="https://commons.wikimedia.org/w/index.php?curid=1670351" target="_blank" rel="noopener">Wikimedia Commons</a>.</figcaption></figure>""")
+        with text_col:
+            html("""<div class="germ-list"><p>Enterococcus are bacteria that live in the guts of people and
+                animals. They usually aren't what makes swimmers sick, but lots of them in the ocean means
+                sewage or animal waste got into the water, along with germs that do cause illness. That's
+                why Hawaiʻi's Department of Health tests for them.</p>
+                <div class="germ-head">Swimming in water over the limit can cause</div>
+                <ul><li><b>Stomach illness</b>, the most common: nausea, vomiting, diarrhea, stomach pain, fever</li>
+                <li><b>Ear, eye, nose, and throat infections</b></li>
+                <li><b>Skin rashes</b> and itching</li></ul>
+                <p>Kids, older adults, and people with weaker immune systems get sick more easily.</p>
+                <div class="germ-links">Read more:
+                <a href="https://www.epa.gov/national-aquatic-resource-surveys/indicators-enterococci" target="_blank" rel="noopener">EPA &rarr;</a>
+                <a href="https://beachapedia.org/Bacteria:_enterococcus" target="_blank" rel="noopener">Surfrider Beachapedia &rarr;</a></div></div>""")
+
+    with st.expander("How accurate is it?"):
+        ours, rule = test["flag_at_30"], comparison[0]
+        caught = lambda recall: round(recall * test["n_unsafe"])
+        html(f"""<div class="vs">
+              <div class="vs-big ours"><b>{ours['recall']:.0%}</b><span>Our model</span></div>
+              <div class="vs-word">vs</div>
+              <div class="vs-big"><b>{rule['recall']:.0%}</b><span>Heavy-rain rule</span></div>
+            </div>
+            <p class="vs-line">We trained on {model['train_years'][0]}–{model['train_years'][1]} and tested on
+            {test['n']} newer samples ({test['years'][0]}–{str(test['years'][1])[2:]}) the model had never seen.
+            Of the {test['n_unsafe']} unsafe ones, ours flagged {caught(ours['recall'])} (warning at 30% risk or
+            more); a rule that only warns on heavy, flash-flood-level rain flagged {caught(rule['recall'])}.
+            When ours said "caution or worse," it was right {ours['precision']:.0%} of the time.</p>""")
+        st.dataframe(pd.DataFrame([{
+            "Approach": f"{c['name']} ({c['note']})",
+            "Unsafe caught": f"{c['recall']:.0%}",
+            "Flags that were unsafe": f"{c['precision']:.0%}",
+            "AUC": "–" if c["auc"] is None else f"{c['auc']:.2f}",
+        } for c in comparison]), hide_index=True, width="stretch")
+
+    with st.expander("What are the limits?"):
+        html('<div class="faq-limits">' + "".join(f"<h3>{t}</h3><p>{b}</p>" for t, b in LIMITS) + "</div>")
+
+    with st.expander("Is this an official advisory?"):
+        html(f"""<p class="faq-p">No. It's a forecast from weather, not a lab test. The Hawaiʻi Department of
+            Health posts the official beach advisories, including Brown Water Advisories after heavy rain.
+            If DOH has posted one, follow it, whatever this forecast says, and stay out of brown or murky
+            water.</p><a class="official-btn" href="{DOH_URL}" target="_blank" rel="noopener">Official DOH advisories &rarr;</a>""")
+
+    with st.expander("How do email alerts work, and how do I stop them?"):
+        html(f"""<p class="faq-p">Sign up in the alerts section above and click the link in the confirmation
+            email (check your spam folder). After that, every morning around 5:30am we check the forecast and
+            email you only the morning your beach turns risky, then once more when it's back to lower risk.
+            Every email has an unsubscribe link at the bottom; one click stops them and deletes your email
+            from our list. We store only your email, beach, and level.</p>
+            <p class="faq-p">Questions? Email <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a>.</p>""")
+
+    with st.expander("Where does the data come from?"):
+        html("""<ul class="faq-list">
+            <li><b>Water tests:</b> <a href="https://bwtf.surfrider.org/report/44" target="_blank" rel="noopener">Surfrider
+            Foundation Blue Water Task Force</a> volunteers, who test Oʻahu beaches every two weeks.</li>
+            <li><b>Weather:</b> <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>, a free
+            weather forecast service.</li>
+            <li><b>Official advisories:</b> the <a href="https://health.hawaii.gov/cwb/" target="_blank" rel="noopener">Hawaiʻi
+            Department of Health, Clean Water Branch</a>.</li></ul>""")
 
 # ------------------------------------------------------------------ Footer
 html(
-    """
+    f"""
 <footer class="site-footer" id="about">
-  <div><div class="brand">Safe Beaches Oʻahu</div>
+  <div><div class="brand">Kai Check Oʻahu</div>
     <p>A Congressional App Challenge project predicting ocean bacteria risk at Oʻahu beaches.
-    A forecast, not a lab test — always follow posted Department of Health advisories.</p></div>
-  <div><h4>The Project</h4><a href="#why">How it works</a><a href="#results">Results</a><a href="#limits">Limitations</a>
-    <a href="#about">About the team</a></div>
+    A forecast, not a lab test: always follow posted Department of Health advisories.</p></div>
+  <div><h4>The Project</h4><a href="#check">Today's forecast</a><a href="#map">Map</a><a href="#alerts">Email alerts</a>
+    <a href="#faq">Questions</a><a href="mailto:{CONTACT_EMAIL}">Contact us</a></div>
   <div><h4>Data</h4><a href="https://bwtf.surfrider.org/report/44">Surfrider BWTF</a>
     <a href="https://open-meteo.com">Open-Meteo</a><a href="https://health.hawaii.gov/cwb/">Hawaiʻi DOH</a></div>
   <div class="copy">Built with help from AI coding tools, disclosed per CAC rules.</div>

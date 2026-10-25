@@ -89,7 +89,7 @@ class SupabaseStore:
 def send_email(settings, to, subject, text, html):
     """Send one email from the team Gmail (SMTP with an app password)."""
     msg = EmailMessage()
-    msg["From"] = f"Safe Beaches Oʻahu <{settings['GMAIL_ADDRESS']}>"
+    msg["From"] = f"Kai Check Oʻahu <{settings['GMAIL_ADDRESS']}>"
     msg["To"] = to
     msg["Subject"] = subject
     msg.set_content(text)
@@ -146,18 +146,37 @@ def _wrap(body_html, unsubscribe_url):
     return f"""<div style="font-family: Arial, sans-serif; font-size: 15px; line-height: 1.55; color: #0b1d26; max-width: 560px;">
 {body_html}
 <p style="color: #555; font-size: 13px;">A forecast from weather, not a lab test or an official advisory. Always follow
-posted Hawaiʻi Department of Health signs and advisories.<br>
+posted Hawaiʻi Department of Health signs and advisories. Questions? Just reply to this email.<br>
 <a href="{unsubscribe_url}">Unsubscribe from alerts for this beach</a></p></div>"""
 
 
-def confirmation_email(beach_name, level, confirm_url):
+def confirmation_email(beach_name, level, confirm_url, unsubscribe_url):
     subject = f"Confirm your alerts for {beach_name}"
     text = (f"Click to start alerts for {beach_name} ({LEVELS[level]}):\n{confirm_url}\n\n"
-            "If you didn't sign up, ignore this email and nothing will be sent.")
+            "If you didn't sign up, ignore this email and nothing will be sent.\n"
+            f"Remove my email: {unsubscribe_url}")
     html = f"""<div style="font-family: Arial, sans-serif; font-size: 15px; line-height: 1.55; color: #0b1d26;">
 <p>Click to start email alerts for <b>{beach_name}</b> when its risk is {LEVELS[level]}:</p>
-<p><a href="{confirm_url}" style="background: #ff6b4a; color: #ffffff; padding: 10px 16px; text-decoration: none; font-weight: bold;">Confirm alerts</a></p>
-<p style="color: #555; font-size: 13px;">If you didn't sign up, ignore this email and nothing will be sent.</p></div>"""
+<table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td style="border-radius: 999px; background: #d2562e;">
+<a href="{confirm_url}" target="_blank" style="display: inline-block; padding: 12px 22px; border-radius: 999px; background: #d2562e; color: #ffffff; text-decoration: none; font-weight: bold;">Confirm alerts</a>
+</td></tr></table>
+<p style="color: #555; font-size: 13px;">Button not working? Copy this link into your browser:<br>
+<a href="{confirm_url}" style="color: #a9411f; word-break: break-all;">{confirm_url}</a></p>
+<p style="color: #555; font-size: 13px;">If you didn't sign up, ignore this email and nothing will be sent.
+Questions? Just reply to this email.<br><a href="{unsubscribe_url}">Remove my email from the list</a></p></div>"""
+    return subject, text, html
+
+
+def welcome_email(beach_name, level, app_url, unsubscribe_url):
+    """Sent right after someone confirms, so they know alerts are on and how to stop them."""
+    subject = f"You're signed up: alerts for {beach_name}"
+    text = (f"Alerts are on for {beach_name} ({LEVELS[level]}).\n"
+            "We'll email you the morning it turns risky, and once more when it's back to lower risk. "
+            "Nothing on the days in between.\n\n"
+            f"Check any beach: {app_url}\nUnsubscribe: {unsubscribe_url}")
+    html = _wrap(f"""<p><b>Alerts are on for {beach_name}</b> ({LEVELS[level]}).</p>
+<p>We'll email you the morning it turns risky, and once more when it's back to lower risk. Nothing on the days in between.</p>
+<p><a href="{app_url}">Check any beach on Kai Check Oʻahu</a></p>""", unsubscribe_url)
     return subject, text, html
 
 
@@ -170,7 +189,7 @@ def risky_email(beach_name, risk, level, days, last_date, nearby, app_url, unsub
     else:
         how_long = "Our forecast shows it dropping back below your level tomorrow."
     if nearby:
-        lines = [f"{b['beach_name']}: {b['risk']:.0%}, {b['km']:.0f} km away" for b in nearby]
+        lines = [f"{b['beach_name']}: {b['risk']:.0%}, {b['km']:.0f} km from {beach_name}" for b in nearby]
         near_text = "Lower-risk beaches nearby today:\n" + "\n".join(f"  - {line}" for line in lines)
         near_html = "<p><b>Lower-risk beaches nearby today:</b></p><ul>" + "".join(f"<li>{line}</li>" for line in lines) + "</ul>"
     else:
@@ -181,25 +200,32 @@ def risky_email(beach_name, risk, level, days, last_date, nearby, app_url, unsub
             f"Unsubscribe: {unsubscribe_url}")
     html = _wrap(f"""<p><b>{beach_name}</b> is at <b>{risk:.0%}</b> today: {LEVELS[level]}.</p>
 <p>{how_long}</p>{near_html if nearby else f"<p>{near_html}</p>"}
-<p><a href="{app_url}">Check any beach on Safe Beaches Oʻahu</a></p>""", unsubscribe_url)
+<p><a href="{app_url}">Check any beach on Kai Check Oʻahu</a></p>""", unsubscribe_url)
     return subject, text, html
 
 
 def clear_email(beach_name, risk, level, app_url, unsubscribe_url):
     subject = f"Forecast: {beach_name} is back to lower risk ({risk:.0%})"
     text = (f"{beach_name} is at {risk:.0%} today, back under your alert level ({level:.0%}).\n"
-            "Still skip brown or murky water and stay away from stream mouths.\n\n"
+            "Still skip brown or murky water and stay away from where streams or storm drains flow into the ocean.\n\n"
             f"Check any beach: {app_url}\nUnsubscribe: {unsubscribe_url}")
     html = _wrap(f"""<p><b>{beach_name}</b> is at <b>{risk:.0%}</b> today, back under your alert level ({level:.0%}).</p>
-<p>Still skip brown or murky water and stay away from stream mouths.</p>
-<p><a href="{app_url}">Check any beach on Safe Beaches Oʻahu</a></p>""", unsubscribe_url)
+<p>Still skip brown or murky water and stay away from where streams or storm drains flow into the ocean.</p>
+<p><a href="{app_url}">Check any beach on Kai Check Oʻahu</a></p>""", unsubscribe_url)
     return subject, text, html
+
+
+def base_url(app_url):
+    """APP_URL cleaned up, with https:// added when the setting leaves it out: email apps
+    (Gmail) drop links that don't start with it, leaving a button you can't click."""
+    url = app_url.strip().rstrip("/")
+    return url if url.startswith(("https://", "http://")) else "https://" + url
 
 
 def link(app_url, **params):
     """APP_URL with query parameters, e.g. link(url, confirm=token)."""
     from urllib.parse import urlencode
-    return f"{app_url.rstrip('/')}/?{urlencode(params)}"
+    return f"{base_url(app_url)}/?{urlencode(params)}"
 
 
 # --------------------------------------------------------------------------- the daily job
@@ -209,6 +235,7 @@ def run_daily(settings, store, model, beaches, send=send_email, risks=None, date
     if risks is None:
         risks, dates = forecast_risks(model, beaches)
     names = {str(b["site_id"]): b["beach_name"] for b in beaches}
+    app_url = base_url(settings["APP_URL"])
     today = {site: day_risks[0] for site, day_risks in risks.items()}
     sent = 0
     for sub in store.confirmed():
@@ -221,9 +248,9 @@ def run_daily(settings, store, model, beaches, send=send_email, risks=None, date
             days, last = risky_until(risks[site], dates, level)
             nearby = recommend.safer_beaches(site, beaches, today, below=LOWER_RISK_BELOW)
             email = risky_email(names[site], today[site], level, days, last, nearby,
-                                settings["APP_URL"], unsubscribe_url)
+                                app_url, unsubscribe_url)
         else:
-            email = clear_email(names[site], today[site], level, settings["APP_URL"], unsubscribe_url)
+            email = clear_email(names[site], today[site], level, app_url, unsubscribe_url)
         send(settings, sub["email"], *email)
         store.set_alerted(sub["token"], action == "risky")
         sent += 1
