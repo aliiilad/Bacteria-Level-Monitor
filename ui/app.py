@@ -48,7 +48,7 @@ FACTOR_LABELS = {
     "wind_max": "Wind",
 }
 
-st.set_page_config(page_title="Kai Check · Oʻahu", page_icon="🌊", layout="wide")
+st.set_page_config(page_title="Kai Check Oʻahu", page_icon="🌊", layout="wide")
 st.markdown(f"<style>{(APP_DIR / 'style.css').read_text()}</style>", unsafe_allow_html=True)
 
 
@@ -262,7 +262,7 @@ html(
     f"""
 <div class="hero" style="background-image:url('{hero_photo()}')">
   <nav class="nav">
-    <div class="brand">Safe Beaches Oʻahu</div>
+    <div class="brand">Kai Check Oʻahu</div>
     <div class="links"><a href="#check">Beaches</a><a href="#why">How it works</a><a href="#map">Map</a><a href="#results">Results</a></div>
     <div><a href="#about">About</a></div>
   </nav>
@@ -281,6 +281,7 @@ with st.container(key="sec-pick"):
     # Official advisories come before any number we show
     html(f"""<div class="official"><div class="official-text"><b>This is a forecast, not an official
         advisory.</b> Always check the Hawaiʻi Department of Health's current beach advisories first,
+        including Brown Water Advisories after heavy rain,
         and follow any posted signs.</div>
         <a class="official-btn" href="{DOH_URL}" target="_blank" rel="noopener">Official DOH advisories &rarr;</a></div>""")
 
@@ -337,9 +338,9 @@ with st.container(key="sec-check"):
             days += f"""<div class="day{' unsure' if unsure else ''}"><span>{name}{'*' if unsure else ''}</span>
                 <b style="color:{risk_color(p)}">{p:.0%}</b>
                 <i><em style="width:{p * 100:.0f}%;background:{risk_color(p)}"></em></i></div>"""
-        outlook_html = f"""<div class="outlook"><div class="outlook-head">3-day outlook</div>
+        outlook_html = f"""<div class="outlook"><div class="outlook-head">3-day bacteria outlook</div>
             <div class="days">{days}</div>
-            <div class="outlook-note">* Less certain: rain forecasts get less accurate the further ahead they look.</div></div>"""
+            <div class="outlook-note">* Less certain: these use rain forecasts further ahead, which are less accurate, so the bacteria forecast is less certain too.</div></div>"""
 
     # Feature 2 (Person B): "What should I do?" + safer beach.
     advice_html = ""
@@ -585,7 +586,8 @@ with st.container(key="sec-alerts"):
                         st.rerun()
 
 # ------------------------------------------------------------------ 04 · How well it works
-comparison = test["comparison"]
+comparison = [dict(c, name="Heavy-rain rule") if c["name"] == "Flash-flood stand-in" else c
+              for c in test["comparison"]]
 beach_only = next(c for c in comparison if c["name"] == "Beach only")
 with st.container(key="sec-results"):
     text_col, _, card_col = st.columns([5, 1, 5], vertical_alignment="center")
@@ -594,9 +596,10 @@ with st.container(key="sec-results"):
             "04", "How well it works", "Does it actually work?",
             f"We trained on {model['train_years'][0]}–{model['train_years'][1]} and held back "
             f"{test['n']} samples from {test['years'][0]}–{str(test['years'][1])[2:]}, "
-            f"{test['n_unsafe']} of them unsafe. A rule that only warns on flash-flood-level rain "
-            f"caught {comparison[0]['recall']:.0%} of the unsafe ones. Our model, flagging at 30% "
-            f"risk, caught {test['flag_at_30']['recall']:.0%}.",
+            f"{test['n_unsafe']} of them unsafe. Our model successfully flagged "
+            f"{test['flag_at_30']['recall']:.0%} of the unsafe ones (warning whenever the risk was 30% or "
+            f"more). A rule that only warns on heavy, flash-flood-level rain caught just "
+            f"{comparison[0]['recall']:.0%}.",
             anchor="results",
         )
     with card_col:
@@ -623,17 +626,19 @@ with st.container(key="sec-results"):
 # ------------------------------------------------------------------ Limits
 LIMITS = [
     ("Where you swim matters most",
-     "Some beaches test high almost every time, rain or shine, so the beach itself tells you more "
-     "than the weather does. Our model gets most of its accuracy from each beach's track record; "
-     "the weather is a smaller boost on top. Rain still matters, just less than you might guess."),
+     "Some beaches test high almost every time, even without rain, so the beach itself tells you "
+     "more than the weather does, contrary to our first guess. Our model gets most of its accuracy "
+     "from each beach's track record rather than the weather. Rain still matters, just less than "
+     "we expected."),
     ("Few tests right after storms",
      "Volunteers test every two weeks on a set schedule, not after storms, so few tests happened "
      "right after heavy rain. The model learns from past examples, so it has the least practice "
      "on the stormy days that matter most and could be off on them."),
-    ("Our comparison is a stand-in",
-     "We wanted to compare with the state's real flash-flood warnings, but there is no public record "
-     "of past ones. So we treated every day with heavy rain (25 mm or more) as a warning day. Real "
-     "warnings might do a little better or worse than this stand-in."),
+    ("We approximated the warnings",
+     "Instead of the state's real past flash-flood warnings, we compared against days with heavy "
+     "rain (25 mm or more), which is roughly when those warnings go out. Real warnings are archived "
+     "by the Iowa Environmental Mesonet; testing against them is our next step, and they might "
+     "catch a few more or fewer unsafe days."),
     ("More data would help",
      f"We had about {model['n_train'] + test['n']:,} water tests from {len(model['site_offsets'])} sites. "
      "Ideally there would be daily tests at every beach, especially right after storms, so the "
@@ -647,7 +652,7 @@ with st.container(key="sec-limits"):
 html(
     """
 <footer class="site-footer" id="about">
-  <div><div class="brand">Safe Beaches Oʻahu</div>
+  <div><div class="brand">Kai Check Oʻahu</div>
     <p>A Congressional App Challenge project predicting ocean bacteria risk at Oʻahu beaches.
     A forecast, not a lab test — always follow posted Department of Health advisories.</p></div>
   <div><h4>The Project</h4><a href="#why">How it works</a><a href="#results">Results</a><a href="#limits">Limitations</a>

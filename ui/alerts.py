@@ -89,7 +89,7 @@ class SupabaseStore:
 def send_email(settings, to, subject, text, html):
     """Send one email from the team Gmail (SMTP with an app password)."""
     msg = EmailMessage()
-    msg["From"] = f"Safe Beaches Oʻahu <{settings['GMAIL_ADDRESS']}>"
+    msg["From"] = f"Kai Check Oʻahu <{settings['GMAIL_ADDRESS']}>"
     msg["To"] = to
     msg["Subject"] = subject
     msg.set_content(text)
@@ -185,7 +185,7 @@ def risky_email(beach_name, risk, level, days, last_date, nearby, app_url, unsub
             f"Unsubscribe: {unsubscribe_url}")
     html = _wrap(f"""<p><b>{beach_name}</b> is at <b>{risk:.0%}</b> today: {LEVELS[level]}.</p>
 <p>{how_long}</p>{near_html if nearby else f"<p>{near_html}</p>"}
-<p><a href="{app_url}">Check any beach on Safe Beaches Oʻahu</a></p>""", unsubscribe_url)
+<p><a href="{app_url}">Check any beach on Kai Check Oʻahu</a></p>""", unsubscribe_url)
     return subject, text, html
 
 
@@ -196,7 +196,7 @@ def clear_email(beach_name, risk, level, app_url, unsubscribe_url):
             f"Check any beach: {app_url}\nUnsubscribe: {unsubscribe_url}")
     html = _wrap(f"""<p><b>{beach_name}</b> is at <b>{risk:.0%}</b> today, back under your alert level ({level:.0%}).</p>
 <p>Still skip brown or murky water and stay away from where streams or storm drains flow into the ocean.</p>
-<p><a href="{app_url}">Check any beach on Safe Beaches Oʻahu</a></p>""", unsubscribe_url)
+<p><a href="{app_url}">Check any beach on Kai Check Oʻahu</a></p>""", unsubscribe_url)
     return subject, text, html
 
 
