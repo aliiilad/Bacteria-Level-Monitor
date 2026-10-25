@@ -133,23 +133,6 @@ READ_KEY = """<div class="key"><div class="key-head">How to read the number</div
     Stay out of the water today.</span></div></div>"""
 
 
-def gauge_svg(p):
-    """Semicircle gauge, 0–100%."""
-    # Arc length of a radius-120 half circle is pi*120 ≈ 377.
-    filled = 377 * p
-    return f"""
-    <svg class="gauge" viewBox="0 0 300 200">
-      <path d="M30 160 A120 120 0 0 1 270 160" fill="none" stroke="#eee3d8"
-            stroke-width="14" stroke-linecap="round"/>
-      <path d="M30 160 A120 120 0 0 1 270 160" fill="none" stroke="{risk_color(p)}"
-            stroke-width="14" stroke-linecap="round" stroke-dasharray="{filled} 400"/>
-      <text x="150" y="140" text-anchor="middle" fill="#2b211c"
-            font-family="Quicksand, Inter, sans-serif" font-weight="700" font-size="64">{p:.0%}</text>
-      <text x="150" y="194" text-anchor="middle" fill="#6e6058"
-            font-family="Inter, sans-serif" font-size="15" font-weight="500">chance of high bacteria today</text>
-    </svg>"""
-
-
 # Beach photos in ui/assets/beaches, with the credit each license asks for. Photos are shown
 # whole (never cropped), since some licenses don't allow changes (ND). The NC ones are fine
 # because the app is non-commercial. Beaches not listed yet show a drawn wave instead.
@@ -433,14 +416,17 @@ with st.container(key="sec-check"):
 
     with card_col:
         html(
-            f"""<div class="card">
-              <div class="label">{row.region} Shore · {when}</div>
-              <div class="beach">{beach}</div>
-              {gauge_svg(prob)}
-              <div class="verdict" style="color:{color}">FORECAST: {verdict}</div>
-              <a class="doh-link" href="{DOH_URL}" target="_blank" rel="noopener">Check today's official DOH
-              advisories for this beach &rarr;</a>{advice_html}{outlook_html}
-            </div>"""
+            f"""<div class="fc">
+              <div class="fc-top {verdict.split()[-1].lower()}">
+                <div class="fc-beach">{beach}</div>
+                <div class="fc-sub">{row.region} Shore · {when}</div>
+                <div class="fc-num">{prob:.0%}</div>
+                <div class="fc-small">chance of high bacteria today</div>
+                <div class="fc-verdict" style="color:{color}">Forecast: {verdict.lower()}</div>
+                <a class="fc-btn" href="{DOH_URL}" target="_blank" rel="noopener">Check official DOH advisories</a>
+              </div>
+              <div class="fc-body">{advice_html}{outlook_html}
+            </div></div>"""
         )
 
 # ------------------------------------------------------------------ Where to swim today

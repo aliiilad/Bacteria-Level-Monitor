@@ -97,6 +97,31 @@
   font-size: 15px; text-decoration: none; }
 .doh-link:hover { text-decoration: underline; }
 
+/* 01 · Forecast card: a tinted panel with the big number on top, a checklist underneath */
+.fc { background: var(--bg-raised); border: 1px solid var(--line); border-radius: 18px; padding: 14px;
+  box-shadow: var(--shadow); }
+.fc-top { border-radius: 12px; padding: 26px 22px 24px; text-align: center; }
+.fc-top.risk { background: linear-gradient(180deg, #e3f3e6, #f7fbf7 85%); }      /* LOWER RISK */
+.fc-top.caution { background: linear-gradient(180deg, #fdefd2, #fffaf0 85%); }
+.fc-top.unsafe { background: linear-gradient(180deg, #fbe0dc, #fff7f5 85%); }    /* LIKELY UNSAFE */
+.fc-beach { font-family: var(--head); font-weight: 700; font-size: 24px; color: var(--text); }
+.fc-sub { margin-top: 4px; font-size: 14px; color: var(--text-muted); }
+.fc-num { margin-top: 10px; font-family: var(--head); font-weight: 700; font-size: 84px; line-height: 1;
+  letter-spacing: -0.02em; color: var(--text); }
+.fc-small { margin-top: 6px; font-size: 15px; color: var(--text-muted); }
+.fc-verdict { margin-top: 14px; font-size: 17px; font-weight: 700; }
+.fc-btn { display: inline-block; margin-top: 18px; padding: 13px 26px; border-radius: 999px; background: var(--deep);
+  color: #ffffff !important; font-weight: 600; font-size: 15px; text-decoration: none !important; }
+.fc-btn:hover { background: #4a342b; }
+.fc-body { padding: 4px 10px 6px; }
+.fc .better { margin-top: 18px; }
+.fc .advice { border-top: 1px solid var(--line); }
+.fc .advice ul { list-style: none; padding-left: 0; }
+.fc .advice li { position: relative; padding-left: 32px; margin-bottom: 10px; }
+.fc .advice li::before { content: "✓"; position: absolute; left: 0; top: 1px; width: 22px; height: 22px; border-radius: 6px;
+  background: #e6f2e8; color: var(--safe); font-size: 13px; font-weight: 700; line-height: 22px; text-align: center; }
+@media (max-width: 760px) { .fc-num { font-size: 68px; } .fc-top { padding: 22px 16px 20px; } }
+
 /* 01 · today's weather tiles and the reading key */
 .wx-head, .key-head, .germ-head, .outlook-head, .advice-head { font-size: 14px; font-weight: 700;
   color: var(--text); margin: 4px 0 10px; }
