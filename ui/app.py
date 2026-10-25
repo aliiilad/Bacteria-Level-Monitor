@@ -510,7 +510,8 @@ with st.container(key="sec-alerts"):
         html(f"""<div class="section-head" id="alerts"><h2>Get a heads-up when your beach turns risky</h2>
             <p>Pick one or more beaches. We'll email you the morning one turns risky, and once more when
             it's back to lower risk. Nothing on the days in between.</p>
-            <p class="contact">Questions? Email <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a></p></div>""")
+            <p class="contact">Questions? Email <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a>.
+            We're always open to suggestions for making Kai Check better.</p></div>""")
     with form_col:
         settings = alert_settings()
         if alerts.missing_settings(settings):  # accounts not set up yet: no form to fill in for nothing
@@ -679,7 +680,8 @@ with st.container(key="sec-faq"):
             You can track several beaches. Every email has links at the bottom to change your beaches or
             unsubscribe; stopping all alerts deletes your email from our list. We store only your email,
             beaches, and level.</p>
-            <p class="faq-p">Questions? Email <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a>.</p>""")
+            <p class="faq-p">Questions? Email <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a>.
+            We're always open to suggestions for making Kai Check better.</p>""")
 
     with st.expander("Where does the data come from?"):
         html("""<ul class="faq-list">
