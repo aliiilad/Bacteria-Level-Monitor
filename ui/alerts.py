@@ -57,25 +57,64 @@ class SupabaseStore:
         resp.raise_for_status()
         return resp.json() if resp.content else []
 
-    def add(self, email, site_id, level):
-        """Create (or reset) an unconfirmed subscription and return its new token."""
-        token = secrets.token_urlsafe(24)
-        self._call("POST", params={"on_conflict": "email,site_id"},
-                   json={"email": email, "site_id": str(site_id), "level": level, "token": token,
-                         "confirmed": False, "alerted": False},
+    @staticmethod
+    def _row(email, site_id, level, confirmed):
+        return {"email": email, "site_id": str(site_id), "level": level,
+                "token": secrets.token_urlsafe(24), "confirmed": confirmed, "alerted": False}
+
+    def add(self, email, site_ids, level):
+        """Create (or reset) unconfirmed subscriptions, one row per beach. Returns the first row's
+        token: the confirm link uses it, and confirming covers every beach for that email."""
+        rows = [self._row(email, sid, level, False) for sid in site_ids]
+        self._call("POST", params={"on_conflict": "email,site_id"}, json=rows,
                    prefer="resolution=merge-duplicates,return=minimal")
-        return token
+        return rows[0]["token"]
+
+    def _email_for(self, token):
+        rows = self._call("GET", params={"token": f"eq.{token}", "select": "email"})
+        return rows[0]["email"] if rows else None
+
+    def subscriptions(self, token):
+        """Every subscription for the email that `token` belongs to ([] for an unknown token)."""
+        email = self._email_for(token)
+        return self._call("GET", params={"email": f"eq.{email}", "select": "*"}) if email else []
 
     def confirm(self, token):
-        """Mark a subscription confirmed. Returns the row, or None for an unknown token."""
-        rows = self._call("PATCH", params={"token": f"eq.{token}"}, json={"confirmed": True},
+        """Confirm every subscription for the token's email (clicking the link proves they own it).
+        Returns the confirmed rows, or [] for an unknown token."""
+        email = self._email_for(token)
+        if not email:
+            return []
+        return self._call("PATCH", params={"email": f"eq.{email}"}, json={"confirmed": True},
                           prefer="return=representation")
-        return rows[0] if rows else None
 
-    def unsubscribe(self, token):
-        """Delete a subscription. Returns the deleted row, or None for an unknown token."""
-        rows = self._call("DELETE", params={"token": f"eq.{token}"}, prefer="return=representation")
-        return rows[0] if rows else None
+    def unsubscribe(self, token, everything=False):
+        """Delete one beach's subscription, or (everything=True) every one for that email.
+        Returns the deleted rows, or [] for an unknown token."""
+        if everything:
+            email = self._email_for(token)
+            return self._call("DELETE", params={"email": f"eq.{email}"},
+                              prefer="return=representation") if email else []
+        return self._call("DELETE", params={"token": f"eq.{token}"}, prefer="return=representation")
+
+    def set_beaches(self, token, site_ids, level):
+        """Replace the token's email's beaches with `site_ids` at `level` (from the manage page).
+        Beaches kept stay as they were (except the level); new ones start confirmed, since the
+        link already proved the email. Returns the new list of rows."""
+        current = self.subscriptions(token)
+        if not current:
+            return []
+        email = current[0]["email"]
+        have, want = {r["site_id"] for r in current}, {str(s) for s in site_ids}
+        if have - want:
+            self._call("DELETE", params={"email": f"eq.{email}", "site_id": f"in.({','.join(sorted(have - want))})"})
+        if have & want:
+            self._call("PATCH", params={"email": f"eq.{email}", "site_id": f"in.({','.join(sorted(have & want))})"},
+                       json={"level": level}, prefer="return=minimal")
+        if want - have:
+            self._call("POST", json=[self._row(email, sid, level, True) for sid in sorted(want - have)],
+                       prefer="return=minimal")
+        return self._call("GET", params={"email": f"eq.{email}", "select": "*"})
 
     def confirmed(self):
         return self._call("GET", params={"confirmed": "eq.true", "select": "*"})
@@ -142,16 +181,24 @@ def _weekday(iso_date):
     return f"{date.fromisoformat(iso_date):%A}"
 
 
-def _wrap(body_html, unsubscribe_url):
+def _wrap(body_html, unsubscribe_url, manage_url):
     return f"""<div style="font-family: Arial, sans-serif; font-size: 15px; line-height: 1.55; color: #0b1d26; max-width: 560px;">
 {body_html}
 <p style="color: #555; font-size: 13px;">A forecast from weather, not a lab test or an official advisory. Always follow
 posted Hawaiʻi Department of Health signs and advisories. Questions? Just reply to this email.<br>
-<a href="{unsubscribe_url}">Unsubscribe from alerts for this beach</a></p></div>"""
+<a href="{manage_url}">Change my beaches</a> · <a href="{unsubscribe_url}">Unsubscribe from this beach</a></p></div>"""
 
 
-def confirmation_email(beach_name, level, confirm_url, unsubscribe_url):
-    subject = f"Confirm your alerts for {beach_name}"
+def beach_list(names):
+    """"Kailua", "Kailua and Waialae", "Kailua, Waialae, and Pōkaʻi Bay"."""
+    names = list(names)
+    return names[0] if len(names) == 1 else (
+        " and ".join(names) if len(names) == 2 else ", ".join(names[:-1]) + ", and " + names[-1])
+
+
+def confirmation_email(beach_names, level, confirm_url, unsubscribe_url):
+    beach_name = beach_list(beach_names)
+    subject = f"Confirm your beach alerts ({len(beach_names)} beach{'es' if len(beach_names) > 1 else ''})"
     text = (f"Click to start alerts for {beach_name} ({LEVELS[level]}):\n{confirm_url}\n\n"
             "If you didn't sign up, ignore this email and nothing will be sent.\n"
             f"Remove my email: {unsubscribe_url}")
@@ -167,20 +214,24 @@ Questions? Just reply to this email.<br><a href="{unsubscribe_url}">Remove my em
     return subject, text, html
 
 
-def welcome_email(beach_name, level, app_url, unsubscribe_url):
-    """Sent right after someone confirms, so they know alerts are on and how to stop them."""
-    subject = f"You're signed up: alerts for {beach_name}"
+def welcome_email(beach_names, level, app_url, manage_url, stop_all_url):
+    """Sent right after someone confirms, so they know alerts are on and how to change or stop them."""
+    beach_name = beach_list(beach_names)
+    subject = "You're signed up for beach alerts"
     text = (f"Alerts are on for {beach_name} ({LEVELS[level]}).\n"
-            "We'll email you the morning it turns risky, and once more when it's back to lower risk. "
+            "We'll email you the morning a beach turns risky, and once more when it's back to lower risk. "
             "Nothing on the days in between.\n\n"
-            f"Check any beach: {app_url}\nUnsubscribe: {unsubscribe_url}")
-    html = _wrap(f"""<p><b>Alerts are on for {beach_name}</b> ({LEVELS[level]}).</p>
-<p>We'll email you the morning it turns risky, and once more when it's back to lower risk. Nothing on the days in between.</p>
-<p><a href="{app_url}">Check any beach on Kai Check Oʻahu</a></p>""", unsubscribe_url)
+            f"Check any beach: {app_url}\nChange my beaches: {manage_url}\nStop all alerts: {stop_all_url}")
+    html = f"""<div style="font-family: Arial, sans-serif; font-size: 15px; line-height: 1.55; color: #0b1d26; max-width: 560px;">
+<p><b>Alerts are on for {beach_name}</b> ({LEVELS[level]}).</p>
+<p>We'll email you the morning a beach turns risky, and once more when it's back to lower risk. Nothing on the days in between.</p>
+<p><a href="{app_url}">Check any beach on Kai Check Oʻahu</a></p>
+<p style="color: #555; font-size: 13px;">A forecast from weather, not a lab test or an official advisory. Questions? Just reply to this email.<br>
+<a href="{manage_url}">Change my beaches</a> · <a href="{stop_all_url}">Stop all alerts</a></p></div>"""
     return subject, text, html
 
 
-def risky_email(beach_name, risk, level, days, last_date, nearby, app_url, unsubscribe_url):
+def risky_email(beach_name, risk, level, days, last_date, nearby, app_url, unsubscribe_url, manage_url):
     """The 'turned risky' alert, with how long it may last and lower-risk beaches nearby."""
     if days >= 1 + risk_model.OUTLOOK_DAYS:
         how_long = f"Our forecast shows it staying {STAYING[level]} for at least the next {days} days."
@@ -197,21 +248,21 @@ def risky_email(beach_name, risk, level, days, last_date, nearby, app_url, unsub
     subject = f"Forecast: high bacteria risk at {beach_name} today ({risk:.0%})"
     text = (f"{beach_name} is at {risk:.0%} today, {LEVELS[level]}.\n{how_long}\n\n{near_text}\n\n"
             f"Check any beach: {app_url}\n\nA forecast, not an official advisory.\n"
-            f"Unsubscribe: {unsubscribe_url}")
+            f"Change my beaches: {manage_url}\nUnsubscribe from this beach: {unsubscribe_url}")
     html = _wrap(f"""<p><b>{beach_name}</b> is at <b>{risk:.0%}</b> today: {LEVELS[level]}.</p>
 <p>{how_long}</p>{near_html if nearby else f"<p>{near_html}</p>"}
-<p><a href="{app_url}">Check any beach on Kai Check Oʻahu</a></p>""", unsubscribe_url)
+<p><a href="{app_url}">Check any beach on Kai Check Oʻahu</a></p>""", unsubscribe_url, manage_url)
     return subject, text, html
 
 
-def clear_email(beach_name, risk, level, app_url, unsubscribe_url):
+def clear_email(beach_name, risk, level, app_url, unsubscribe_url, manage_url):
     subject = f"Forecast: {beach_name} is back to lower risk ({risk:.0%})"
     text = (f"{beach_name} is at {risk:.0%} today, back under your alert level ({level:.0%}).\n"
             "Still skip brown or murky water and stay away from where streams or storm drains flow into the ocean.\n\n"
-            f"Check any beach: {app_url}\nUnsubscribe: {unsubscribe_url}")
+            f"Check any beach: {app_url}\nChange my beaches: {manage_url}\nUnsubscribe from this beach: {unsubscribe_url}")
     html = _wrap(f"""<p><b>{beach_name}</b> is at <b>{risk:.0%}</b> today, back under your alert level ({level:.0%}).</p>
 <p>Still skip brown or murky water and stay away from where streams or storm drains flow into the ocean.</p>
-<p><a href="{app_url}">Check any beach on Kai Check Oʻahu</a></p>""", unsubscribe_url)
+<p><a href="{app_url}">Check any beach on Kai Check Oʻahu</a></p>""", unsubscribe_url, manage_url)
     return subject, text, html
 
 
@@ -244,13 +295,14 @@ def run_daily(settings, store, model, beaches, send=send_email, risks=None, date
         if action is None:
             continue
         unsubscribe_url = link(settings["APP_URL"], unsubscribe=sub["token"])
+        manage_url = link(settings["APP_URL"], manage=sub["token"])
         if action == "risky":
             days, last = risky_until(risks[site], dates, level)
             nearby = recommend.safer_beaches(site, beaches, today, below=LOWER_RISK_BELOW)
             email = risky_email(names[site], today[site], level, days, last, nearby,
-                                app_url, unsubscribe_url)
+                                app_url, unsubscribe_url, manage_url)
         else:
-            email = clear_email(names[site], today[site], level, app_url, unsubscribe_url)
+            email = clear_email(names[site], today[site], level, app_url, unsubscribe_url, manage_url)
         send(settings, sub["email"], *email)
         store.set_alerted(sub["token"], action == "risky")
         sent += 1

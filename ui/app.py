@@ -238,9 +238,56 @@ def link_result(icon, title, body):
         <div class="sent-head">{title}</div><p>{body}</p></div>""")
 
 
-# Email links: ?confirm=<token> starts alerts, ?unsubscribe=<token> stops them.
+# Email links (each carries a subscription's random token):
+#   ?confirm=   turns alerts on for every beach that email signed up for
+#   ?manage=    opens "Your beach alerts" to change beaches or level, or stop everything
+#   ?unsubscribe=  stops one beach      ?stop=  stops every beach for that email
 beach_names = {str(b.site_id): b.beach_name for b in beaches.itertuples()}
-for action in ("confirm", "unsubscribe"):
+beach_ids = {name: sid for sid, name in beach_names.items()}
+
+
+@st.dialog("Your beach alerts")
+def manage_alerts(token, settings):
+    """Change which beaches an email tracks (and the level), or stop all alerts."""
+    store = alerts.SupabaseStore(settings)
+    try:
+        rows = store.subscriptions(token)
+    except Exception:
+        st.error("Sorry, we couldn't load your alerts right now. Please try again later.")
+        return
+    if not rows:
+        html('<div class="link-result"><p>This link no longer works. If you stopped all alerts, sign up '
+             'again in the alerts section.</p></div>')
+        return
+    html(f'<p class="manage-email">Alerts for <b>{rows[0]["email"]}</b></p>')
+    current = [beach_names[r["site_id"]] for r in rows if r["site_id"] in beach_names]
+    picked = st.multiselect("Beaches to track", list(beach_names.values()), default=current, key="manage-beaches")
+    levels = list(alerts.LEVELS)
+    level = st.radio("Email me when risk is", levels, index=levels.index(float(rows[0]["level"])),
+                     format_func=alerts.LEVELS.get, key="manage-level")
+    save_col, stop_col = st.columns(2)
+    try:
+        if save_col.button("Save changes", type="primary", width="stretch"):
+            if not picked:
+                st.error('Pick at least one beach, or use "Stop all alerts".')
+            else:
+                store.set_beaches(token, [beach_ids[n] for n in picked], level)
+                st.session_state["alert_flash"] = ("ok", "Saved", f"You're now tracking {alerts.beach_list(picked)}.")
+                st.query_params.clear()
+                st.rerun()
+        if stop_col.button("Stop all alerts", width="stretch"):
+            store.unsubscribe(token, everything=True)
+            st.session_state["alert_flash"] = ("ok", "You're unsubscribed",
+                                               "You won't get any more alerts, and we deleted your email from our list.")
+            st.query_params.clear()
+            st.rerun()
+    except Exception:
+        st.error("Sorry, something went wrong. Please try again later.")
+
+
+if "alert_flash" in st.session_state:  # result of the manage pop-up, shown after it closes
+    link_result(*st.session_state.pop("alert_flash"))
+for action in ("confirm", "manage", "unsubscribe", "stop"):
     token = st.query_params.get(action)
     if not token:
         continue
@@ -248,30 +295,39 @@ for action in ("confirm", "unsubscribe"):
     if alerts.missing_settings(settings):
         st.warning("Email alerts aren't set up yet, so this link can't be used right now.")
         break
+    if action == "manage":
+        manage_alerts(token, settings)
+        break
     try:
         store = alerts.SupabaseStore(settings)
-        found = store.confirm(token) if action == "confirm" else store.unsubscribe(token)
+        found = (store.confirm(token) if action == "confirm" else
+                 store.unsubscribe(token, everything=action == "stop"))
     except Exception:
         st.error("Sorry, something went wrong with that link. Please try again later.")
         break
     st.query_params.clear()  # so a refresh doesn't use the link again
-    name = beach_names.get(str(found["site_id"]), "your beach") if found else ""
+    names = alerts.beach_list([beach_names.get(str(r["site_id"]), "your beach") for r in found]) if found else ""
     if not found:
         link_result("info", "This link was already used",
                     "It may have expired, or you already clicked it. Sign up again in the alerts section if you need to.")
     elif action == "confirm":
-        try:  # a welcome email, so there's a record of what they signed up for and how to stop it
-            alerts.send_email(settings, found["email"], *alerts.welcome_email(
-                name, float(found["level"]), alerts.base_url(settings["APP_URL"]),
-                alerts.link(settings["APP_URL"], unsubscribe=found["token"])))
+        try:  # a welcome email, so there's a record of what they signed up for and how to change it
+            alerts.send_email(settings, found[0]["email"], *alerts.welcome_email(
+                [beach_names.get(str(r["site_id"]), "your beach") for r in found], float(found[0]["level"]),
+                alerts.base_url(settings["APP_URL"]), alerts.link(settings["APP_URL"], manage=token),
+                alerts.link(settings["APP_URL"], stop=token)))
         except Exception:
             pass  # they're confirmed either way
         link_result("ok", "You're signed up!",
-                    f"You'll get an email the morning <b>{name}</b> turns risky, and one more when it's back "
-                    "to lower risk. Every email has an unsubscribe link. We just sent you a welcome email too.")
+                    f"You'll get an email the morning <b>{names}</b> turns risky, and one more when it's back "
+                    "to lower risk. Every email has links to change your beaches or unsubscribe. We just sent "
+                    "you a welcome email too.")
+    elif action == "stop":
+        link_result("ok", "You're unsubscribed",
+                    "You won't get any more alerts, and we deleted your email from our list.")
     else:
         link_result("ok", "You're unsubscribed",
-                    f"You won't get any more alerts for <b>{name}</b>, and we deleted your email from our list.")
+                    f"You won't get any more alerts for <b>{names}</b>. Your other beaches, if any, stay on.")
     break
 
 # ------------------------------------------------------------------ Hero
@@ -466,8 +522,8 @@ with st.container(key="sec-alerts"):
     text_col, _, form_col = st.columns([5, 1, 5])
     with text_col:
         html(f"""<div class="section-head" id="alerts"><h2>Get a heads-up when your beach turns risky</h2>
-            <p>Pick your beach. We'll email you the morning it turns risky, and once more when it's
-            back to lower risk. Nothing on the days in between.</p>
+            <p>Pick one or more beaches. We'll email you the morning one turns risky, and once more when
+            it's back to lower risk. Nothing on the days in between.</p>
             <p class="contact">Questions? Email <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a></p></div>""")
     with form_col:
         settings = alert_settings()
@@ -482,13 +538,13 @@ with st.container(key="sec-alerts"):
                 Click it to turn your alerts on.</p>
                 <p class="sent-fine">Don't see it? Check your spam folder and mark it "Not spam" (links
                 don't work in spam). Adding {CONTACT_EMAIL} to your contacts keeps later alerts in your inbox.</p></div>""")
-            st.button("Track another beach", key="alert-again", width="stretch",
+            st.button("Sign up another email", key="alert-again", width="stretch",
                       on_click=lambda: st.session_state.pop("alert_sent", None))
         else:
             with st.form("alert-form"):
                 email = st.text_input("Email", placeholder="you@example.com")
-                track = st.selectbox("Beach to track", beaches["beach_name"], index=None,
-                                     placeholder="Choose a beach")
+                tracks = st.multiselect("Beaches to track", beaches["beach_name"],
+                                        placeholder="Choose one or more beaches")
                 level = st.radio("Email me when risk is", list(alerts.LEVELS), format_func=alerts.LEVELS.get)
                 submitted = st.form_submit_button("Send me a confirmation email", type="primary",
                                                   width="stretch")
@@ -497,23 +553,23 @@ with st.container(key="sec-alerts"):
                 signups = st.session_state.get("alert_signups", 0)
                 if not alerts.valid_email(email):
                     st.error("Please enter a valid email address.")
-                elif track is None:
-                    st.error("Please choose a beach to track.")
+                elif not tracks:
+                    st.error("Please choose at least one beach to track.")
                 elif signups >= 3:  # keeps one visitor from flooding inboxes with confirmation emails
                     st.error("You've signed up several times already. Please check your inbox.")
                 else:
-                    site_id = str(beaches.set_index("beach_name").loc[track, "site_id"])
                     try:
                         with st.spinner("Sending your confirmation email…"):
-                            token = alerts.SupabaseStore(settings).add(email.strip().lower(), site_id, level)
+                            token = alerts.SupabaseStore(settings).add(
+                                email.strip().lower(), [beach_ids[t] for t in tracks], level)
                             alerts.send_email(settings, email.strip(), *alerts.confirmation_email(
-                                track, level, alerts.link(settings["APP_URL"], confirm=token),
-                                alerts.link(settings["APP_URL"], unsubscribe=token)))
+                                tracks, level, alerts.link(settings["APP_URL"], confirm=token),
+                                alerts.link(settings["APP_URL"], stop=token)))
                     except Exception:
                         st.error("Sorry, we couldn't sign you up right now. Please try again later.")
                     else:
                         st.session_state["alert_signups"] = signups + 1
-                        st.session_state["alert_sent"] = {"email": email.strip(), "beach": track}
+                        st.session_state["alert_sent"] = {"email": email.strip(), "beach": alerts.beach_list(tracks)}
                         st.rerun()
 
 # ------------------------------------------------------------------ Questions (dropdowns)
@@ -634,8 +690,9 @@ with st.container(key="sec-faq"):
         html(f"""<p class="faq-p">Sign up in the alerts section above and click the link in the confirmation
             email (check your spam folder). After that, every morning around 5:30am we check the forecast and
             email you only the morning your beach turns risky, then once more when it's back to lower risk.
-            Every email has an unsubscribe link at the bottom; one click stops them and deletes your email
-            from our list. We store only your email, beach, and level.</p>
+            You can track several beaches. Every email has links at the bottom to change your beaches or
+            unsubscribe; stopping all alerts deletes your email from our list. We store only your email,
+            beaches, and level.</p>
             <p class="faq-p">Questions? Email <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a>.</p>""")
 
     with st.expander("Where does the data come from?"):
