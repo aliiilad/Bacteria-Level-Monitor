@@ -10,6 +10,7 @@ Run:  streamlit run ui/app.py
 """
 import base64
 import importlib
+import traceback
 from datetime import date
 from pathlib import Path
 
@@ -545,15 +546,21 @@ with st.container(key="sec-alerts"):
                 elif signups >= 3:  # keeps one visitor from flooding inboxes with confirmation emails
                     st.error("You've signed up several times already. Please check your inbox.")
                 else:
+                    step = "save"  # which step failed decides the message; the full error goes to the app's logs
                     try:
                         with st.spinner("Sending your confirmation email…"):
                             token = alerts.SupabaseStore(settings).add(
                                 email.strip().lower(), [beach_ids[t] for t in tracks], level)
+                            step = "email"
                             alerts.send_email(settings, email.strip(), *alerts.confirmation_email(
                                 tracks, level, alerts.link(settings["APP_URL"], confirm=token),
                                 alerts.link(settings["APP_URL"], stop=token)))
                     except Exception:
-                        st.error("Sorry, we couldn't sign you up right now. Please try again later.")
+                        traceback.print_exc()
+                        st.error("Sorry, we couldn't save your sign-up right now. Please try again later."
+                                 if step == "save" else
+                                 "We saved your sign-up but couldn't send the confirmation email. "
+                                 "Please try again later.")
                     else:
                         st.session_state["alert_signups"] = signups + 1
                         st.session_state["alert_sent"] = {"email": email.strip(), "beach": alerts.beach_list(tracks)}
