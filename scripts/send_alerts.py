@@ -4,7 +4,8 @@
 Scores every beach from today's Open-Meteo forecast, then emails each confirmed subscriber whose
 beach crossed their level since yesterday (see ui/alerts.py for the rules).
 
-    python scripts/send_alerts.py            # real run: needs the five settings as env vars
+    python scripts/send_alerts.py            # real run: needs the five settings as env vars, and
+                                             # fails (so GitHub emails the owner) if any are missing
     python scripts/send_alerts.py --dry-run  # prints the emails instead of sending them and
                                              # changes nothing (works without any settings)
 """
@@ -56,10 +57,10 @@ def main():
             store.set_alerted = lambda token, alerted: None   # read real subscribers, change nothing
         send = print_email
     else:
-        if missing:  # not set up yet: skip quietly instead of failing every morning
-            print(f"Alerts not set up yet (missing {', '.join(missing)}); nothing sent. "
-                  "See docs/ALERTS_SETUP.md.")
-            return
+        if missing:  # fail loudly: a red run makes GitHub email the repo owner the same day
+            sys.exit(f"Alerts are live but these GitHub secrets are missing: {', '.join(missing)}. "
+                     "Nothing was sent. Add them under Settings > Secrets and variables > Actions "
+                     "(see docs/ALERTS_SETUP.md).")
         store, send = alerts.SupabaseStore(settings), alerts.send_email
 
     model = risk_model.load_model()

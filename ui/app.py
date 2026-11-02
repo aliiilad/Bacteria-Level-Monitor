@@ -10,6 +10,7 @@ Run:  streamlit run ui/app.py
 """
 import base64
 import importlib
+import traceback
 from datetime import date
 from pathlib import Path
 
@@ -85,6 +86,14 @@ def alert_settings():
         return {name: st.secrets.get(name, "") for name in alerts.SETTING_NAMES}
     except Exception:  # no secrets file at all (e.g. running locally)
         return {}
+
+
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def keep_database_awake(url, key):
+    """Touch the alerts database at most every 6 hours while people visit, so the free Supabase
+    project never reaches its week of inactivity and pauses. A failure raises, so it isn't cached
+    and the next visit tries again."""
+    alerts.SupabaseStore({"SUPABASE_URL": url, "SUPABASE_SERVICE_KEY": key}).ping()
 
 
 def pick_beach(name):
@@ -220,6 +229,13 @@ def link_result(icon, title, body):
     html(f"""<div class="link-result"><div class="sent-check {icon}">{'&#10003;' if icon == 'ok' else 'i'}</div>
         <div class="sent-head">{title}</div><p>{body}</p></div>""")
 
+
+_settings = alert_settings()
+if not alerts.missing_settings(_settings):
+    try:
+        keep_database_awake(_settings["SUPABASE_URL"], _settings["SUPABASE_SERVICE_KEY"])
+    except Exception:
+        traceback.print_exc()  # the page still works; sign-up shows its own message if the database is down
 
 # Email links (each carries a subscription's random token):
 #   ?confirm=   turns alerts on for every beach that email signed up for
@@ -545,15 +561,21 @@ with st.container(key="sec-alerts"):
                 elif signups >= 3:  # keeps one visitor from flooding inboxes with confirmation emails
                     st.error("You've signed up several times already. Please check your inbox.")
                 else:
+                    step = "save"  # which step failed decides the message; the full error goes to the app's logs
                     try:
                         with st.spinner("Sending your confirmation email…"):
                             token = alerts.SupabaseStore(settings).add(
                                 email.strip().lower(), [beach_ids[t] for t in tracks], level)
+                            step = "email"
                             alerts.send_email(settings, email.strip(), *alerts.confirmation_email(
                                 tracks, level, alerts.link(settings["APP_URL"], confirm=token),
                                 alerts.link(settings["APP_URL"], stop=token)))
                     except Exception:
-                        st.error("Sorry, we couldn't sign you up right now. Please try again later.")
+                        traceback.print_exc()
+                        st.error("Sorry, we couldn't save your sign-up right now. Please try again later."
+                                 if step == "save" else
+                                 "We saved your sign-up but couldn't send the confirmation email. "
+                                 "Please try again later.")
                     else:
                         st.session_state["alert_signups"] = signups + 1
                         st.session_state["alert_sent"] = {"email": email.strip(), "beach": alerts.beach_list(tracks)}

@@ -16,6 +16,7 @@ variables): SUPABASE_URL, SUPABASE_SERVICE_KEY, GMAIL_ADDRESS, GMAIL_APP_PASSWOR
 import re
 import secrets
 import smtplib
+import time
 from email.message import EmailMessage
 
 import requests
@@ -51,11 +52,26 @@ class SupabaseStore:
         self.headers = {"apikey": key, "Authorization": f"Bearer {key}",
                         "Content-Type": "application/json"}
 
-    def _call(self, method, params=None, json=None, prefer=None):
+    def _call(self, method, params=None, json=None, prefer=None, tries=3, timeout=10):
+        """One REST call. Network errors and 5xx answers (e.g. the database still waking up) are
+        retried a few times; every call here is safe to repeat. 4xx errors are raised at once."""
         headers = dict(self.headers, **({"Prefer": prefer} if prefer else {}))
-        resp = requests.request(method, self.url, params=params, json=json, headers=headers, timeout=10)
-        resp.raise_for_status()
-        return resp.json() if resp.content else []
+        for attempt in range(tries):
+            try:
+                resp = requests.request(method, self.url, params=params, json=json, headers=headers,
+                                        timeout=timeout)
+                if resp.status_code < 500 or attempt == tries - 1:
+                    resp.raise_for_status()
+                    return resp.json() if resp.content else []
+            except (requests.ConnectionError, requests.Timeout):
+                if attempt == tries - 1:
+                    raise
+            time.sleep(1.5 * (attempt + 1))
+
+    def ping(self):
+        """A tiny read. Free Supabase projects pause after about a week with no activity, so the app
+        calls this now and then to keep the database awake."""
+        self._call("GET", params={"select": "id", "limit": "1"}, tries=1, timeout=5)
 
     @staticmethod
     def _row(email, site_id, level, confirmed):
