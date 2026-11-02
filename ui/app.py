@@ -606,7 +606,7 @@ LIMITS = [
      "model could learn from many more risky days."),
 ]
 with st.container(key="sec-faq"):
-    html('<h2 class="center-title" id="faq">Questions</h2>')
+    html('<div id="faq"><h2 class="center-title">Questions</h2></div>')  # id on the div: Streamlit renames heading ids
 
     with st.expander("How do I read the number?"):
         html(READ_KEY)
