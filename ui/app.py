@@ -88,6 +88,14 @@ def alert_settings():
         return {}
 
 
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def keep_database_awake(url, key):
+    """Touch the alerts database at most every 6 hours while people visit, so the free Supabase
+    project never reaches its week of inactivity and pauses. A failure raises, so it isn't cached
+    and the next visit tries again."""
+    alerts.SupabaseStore({"SUPABASE_URL": url, "SUPABASE_SERVICE_KEY": key}).ping()
+
+
 def pick_beach(name):
     """Button callback: switch the beach picker to `name`."""
     st.session_state["beach"] = name
@@ -221,6 +229,13 @@ def link_result(icon, title, body):
     html(f"""<div class="link-result"><div class="sent-check {icon}">{'&#10003;' if icon == 'ok' else 'i'}</div>
         <div class="sent-head">{title}</div><p>{body}</p></div>""")
 
+
+_settings = alert_settings()
+if not alerts.missing_settings(_settings):
+    try:
+        keep_database_awake(_settings["SUPABASE_URL"], _settings["SUPABASE_SERVICE_KEY"])
+    except Exception:
+        traceback.print_exc()  # the page still works; sign-up shows its own message if the database is down
 
 # Email links (each carries a subscription's random token):
 #   ?confirm=   turns alerts on for every beach that email signed up for
