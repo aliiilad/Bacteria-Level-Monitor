@@ -10,6 +10,7 @@ Run:  streamlit run ui/app.py
 """
 import base64
 import importlib
+import smtplib
 import traceback
 from datetime import date
 from pathlib import Path
@@ -86,6 +87,25 @@ def alert_settings():
         return {name: st.secrets.get(name, "") for name in alerts.SETTING_NAMES}
     except Exception:  # no secrets file at all (e.g. running locally)
         return {}
+
+
+def error_code(exc):
+    """A short, safe description of what went wrong (no keys or passwords), shown with sign-up
+    errors so whoever sees it can tell us the cause without the server logs."""
+    response = getattr(exc, "response", None)
+    if response is not None:
+        try:
+            code = response.json().get("code", "")
+        except Exception:
+            code = ""
+        return f"database HTTP {response.status_code}" + (f", code {code}" if code else "")
+    if isinstance(exc, alerts.requests.Timeout):
+        return "database timed out"
+    if isinstance(exc, alerts.requests.ConnectionError):
+        return "can't reach the database"
+    if isinstance(exc, smtplib.SMTPAuthenticationError):
+        return "Gmail refused the login"
+    return type(exc).__name__
 
 
 @st.cache_data(ttl=6 * 3600, show_spinner=False)
@@ -570,12 +590,12 @@ with st.container(key="sec-alerts"):
                             alerts.send_email(settings, email.strip(), *alerts.confirmation_email(
                                 tracks, level, alerts.link(settings["APP_URL"], confirm=token),
                                 alerts.link(settings["APP_URL"], stop=token)))
-                    except Exception:
+                    except Exception as exc:
                         traceback.print_exc()
-                        st.error("Sorry, we couldn't save your sign-up right now. Please try again later."
-                                 if step == "save" else
-                                 "We saved your sign-up but couldn't send the confirmation email. "
-                                 "Please try again later.")
+                        st.error(("Sorry, we couldn't save your sign-up right now. Please try again later."
+                                  if step == "save" else
+                                  "We saved your sign-up but couldn't send the confirmation email. "
+                                  "Please try again later.") + f" (Error: {error_code(exc)})")
                     else:
                         st.session_state["alert_signups"] = signups + 1
                         st.session_state["alert_sent"] = {"email": email.strip(), "beach": alerts.beach_list(tracks)}
