@@ -68,6 +68,9 @@
 .read-more { color: var(--accent) !important; font-weight: 600; text-decoration: none; }
 .read-more:hover { text-decoration: underline; }
 
+/* Spinners and email-link messages (ui/app.py "Slow steps"): takes no room while it is empty */
+.st-key-sec-wait.st-key-sec-wait { padding-top: 0; padding-bottom: 0; }
+
 /* ---------- Beach picker + official notice, under the photo ---------- */
 .st-key-sec-pick { padding-top: 0; padding-bottom: 32px; margin-top: -64px; position: relative; z-index: 2; }
 .st-key-sec-pick [data-testid="stSelectbox"] { max-width: 640px; margin: 0 auto; }
@@ -284,6 +287,7 @@
 .st-key-alert-again button { margin-top: 12px; background: rgba(255, 255, 255, 0.92) !important; }
 .st-key-sec-alerts .soon-head { color: var(--accent); font-family: var(--head); font-size: 20px; font-weight: 700; margin-bottom: 8px; }
 .st-key-sec-alerts .soon p { color: var(--text-muted); font-size: 16px; line-height: 1.6; margin: 0; }
+.st-key-sec-alerts .soon a { color: var(--accent); }
 
 /* ---------- 04 · Results chart ---------- */
 .card.chart { min-height: 0; }

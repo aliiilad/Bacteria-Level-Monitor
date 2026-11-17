@@ -3,8 +3,9 @@ Streamlit, so both the app (sign-up, confirm, unsubscribe) and the daily job
 (scripts/send_alerts.py) can import it.
 
 How it works
-- Someone signs up in the app with an email, a beach, and a level (30% or 60%). We store only
-  those, plus a random token, in a Supabase table, and email them a confirmation link.
+- Someone signs up in the app with an email, one or more beaches, and a level (30% or 60%). We
+  store only those, plus a random token, in a Supabase table, and email them a confirmation link.
+  Nothing is sent, and nothing about an existing subscription changes, until that link is clicked.
 - Every morning a GitHub Actions job scores every beach, and emails each confirmed subscriber
   only when their beach CROSSES their level: one "turned risky" email, then one "back to
   lower risk" email when it drops below again. No repeats on the days in between.
@@ -18,6 +19,7 @@ import secrets
 import smtplib
 import time
 from email.message import EmailMessage
+from html import escape
 
 import requests
 
@@ -30,6 +32,7 @@ LOWER_RISK_BELOW = 0.30  # "lower-risk beaches nearby" = the app's green band, a
 SETTING_NAMES = ["SUPABASE_URL", "SUPABASE_SERVICE_KEY", "GMAIL_ADDRESS", "GMAIL_APP_PASSWORD", "APP_URL"]
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 TABLE = "subscribers"
+PAUSED = 540  # Supabase's status code for a paused project
 
 
 def missing_settings(settings):
@@ -41,31 +44,64 @@ def valid_email(email):
     return bool(EMAIL_RE.match(email.strip())) and len(email) <= 254
 
 
+def level_from_link(text):
+    """The level a confirm link carries (?level=0.6), or None when it has none or it isn't one
+    of ours (links from older emails have no level)."""
+    try:
+        return float(text) if float(text) in LEVELS else None
+    except (TypeError, ValueError):
+        return None
+
+
 # --------------------------------------------------------------------------- storage
+class DatabaseError(Exception):
+    """The subscribers table couldn't be read or changed. The message says why, and is safe to
+    log: it never holds an email or a link token."""
+
+
+def _reason(resp):
+    """Supabase's own error code and message. Its "details" are left out (they can quote an email)."""
+    try:
+        err = resp.json()
+        return f"{err.get('code', '')} {err.get('message', '')}".strip()
+    except (ValueError, AttributeError):  # not JSON, or not a JSON object
+        return resp.text[:200].strip()
+
+
 class SupabaseStore:
     """The subscribers table, through Supabase's REST API. The service key stays on the server
     (Streamlit and GitHub secrets); the table has row-level security on and no public access."""
 
     def __init__(self, settings):
-        self.url = settings["SUPABASE_URL"].rstrip("/") + f"/rest/v1/{TABLE}"
-        key = settings["SUPABASE_SERVICE_KEY"]
+        self.url = settings["SUPABASE_URL"].strip().rstrip("/") + f"/rest/v1/{TABLE}"
+        key = settings["SUPABASE_SERVICE_KEY"].strip()
         self.headers = {"apikey": key, "Authorization": f"Bearer {key}",
                         "Content-Type": "application/json"}
 
     def _call(self, method, params=None, json=None, prefer=None, tries=3, timeout=10):
         """One REST call. Network errors and 5xx answers (e.g. the database still waking up) are
-        retried a few times; every call here is safe to repeat. 4xx errors are raised at once."""
+        retried a few times; every call here is safe to repeat. 4xx errors are raised at once, and
+        so is a paused project: waiting doesn't help, someone has to restore it by hand.
+        Every failure becomes a DatabaseError that says what went wrong but leaves out the
+        request's URL, because the URL can hold an email or a link token and errors get logged."""
         headers = dict(self.headers, **({"Prefer": prefer} if prefer else {}))
         for attempt in range(tries):
+            last = attempt == tries - 1
             try:
                 resp = requests.request(method, self.url, params=params, json=json, headers=headers,
                                         timeout=timeout)
-                if resp.status_code < 500 or attempt == tries - 1:
-                    resp.raise_for_status()
+            except (requests.ConnectionError, requests.Timeout) as err:
+                if last:
+                    raise DatabaseError(f"couldn't reach Supabase ({type(err).__name__}). Check SUPABASE_URL, "
+                                        "and that the project still exists.") from None
+            else:
+                if resp.ok:
                     return resp.json() if resp.content else []
-            except (requests.ConnectionError, requests.Timeout):
-                if attempt == tries - 1:
-                    raise
+                if resp.status_code == PAUSED:
+                    raise DatabaseError("the Supabase project is paused (free projects pause after about a week "
+                                        "with no activity). Restore it on the Supabase dashboard.")
+                if resp.status_code < 500 or last:
+                    raise DatabaseError(f"Supabase answered {resp.status_code}: {_reason(resp)}")
             time.sleep(1.5 * (attempt + 1))
 
     def ping(self):
@@ -79,12 +115,18 @@ class SupabaseStore:
                 "token": secrets.token_urlsafe(24), "confirmed": confirmed, "alerted": False}
 
     def add(self, email, site_ids, level):
-        """Create (or reset) unconfirmed subscriptions, one row per beach. Returns the first row's
-        token: the confirm link uses it, and confirming covers every beach for that email."""
+        """Save a sign-up: one unconfirmed row for each beach this email doesn't track yet.
+        Beaches it already tracks are left exactly as they are. Anyone can type any email into
+        the form, so signing up again must not switch off alerts that were already confirmed, or
+        break the links in earlier emails. The level picked now travels in the confirm link and
+        is applied when the owner of the email clicks it (see confirm).
+        Returns a token for that link; confirming covers every beach for the email."""
         rows = [self._row(email, sid, level, False) for sid in site_ids]
         self._call("POST", params={"on_conflict": "email,site_id"}, json=rows,
-                   prefer="resolution=merge-duplicates,return=minimal")
-        return rows[0]["token"]
+                   prefer="resolution=ignore-duplicates,return=minimal")
+        # A beach that was already there kept its old token, so read the tokens back.
+        stored = self._call("GET", params={"email": f"eq.{email}", "select": "site_id,token"})
+        return {r["site_id"]: r["token"] for r in stored}[str(site_ids[0])]
 
     def _email_for(self, token):
         rows = self._call("GET", params={"token": f"eq.{token}", "select": "email"})
@@ -95,13 +137,15 @@ class SupabaseStore:
         email = self._email_for(token)
         return self._call("GET", params={"email": f"eq.{email}", "select": "*"}) if email else []
 
-    def confirm(self, token):
+    def confirm(self, token, level=None):
         """Confirm every subscription for the token's email (clicking the link proves they own it).
+        With a `level` (the one picked at sign-up, carried by the link), every beach is set to it.
         Returns the confirmed rows, or [] for an unknown token."""
         email = self._email_for(token)
         if not email:
             return []
-        return self._call("PATCH", params={"email": f"eq.{email}"}, json={"confirmed": True},
+        change = {"confirmed": True, **({"level": level} if level in LEVELS else {})}
+        return self._call("PATCH", params={"email": f"eq.{email}"}, json=change,
                           prefer="return=representation")
 
     def unsubscribe(self, token, everything=False):
@@ -143,23 +187,36 @@ class SupabaseStore:
 # --------------------------------------------------------------------------- sending
 def send_email(settings, to, subject, text, html):
     """Send one email from the team Gmail (SMTP with an app password)."""
+    sender = settings["GMAIL_ADDRESS"].strip()
     msg = EmailMessage()
-    msg["From"] = f"Kai Check Oʻahu <{settings['GMAIL_ADDRESS']}>"
+    msg["From"] = f"Kai Check Oʻahu <{sender}>"
     msg["To"] = to
     msg["Subject"] = subject
     msg.set_content(text)
     msg.add_alternative(html, subtype="html")
+    # Google shows the app password as four groups of letters. Pasted with its spaces (which can
+    # be non-breaking spaces that the login can't even send), it fails, so take every space out.
+    password = "".join(settings["GMAIL_APP_PASSWORD"].split())
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=20) as smtp:
-        smtp.login(settings["GMAIL_ADDRESS"], settings["GMAIL_APP_PASSWORD"])
+        smtp.login(sender, password)
         smtp.send_message(msg)
 
 
 # --------------------------------------------------------------------------- forecast
-def forecast_risks(model, beaches):
+def forecast_risks(model, beaches, tries=4):
     """{site_id: [risk today, tomorrow, +2, +3]} and the matching dates, from one live fetch.
-    Same steps as the app's 3-day outlook (fetch_live_features in ui/app.py)."""
+    Same steps as the app's 3-day outlook (fetch_live_features in ui/app.py). The weather service
+    sometimes refuses or times out (it limits requests per minute), and without weather nobody
+    gets an alert that day, so a failed fetch is tried again after 20, 40, then 60 seconds."""
     points = {str(b["site_id"]): tuple(model["weather_points"][str(b["site_id"])]) for b in beaches}
-    daily = risk_model.fetch_daily_weather(list(points.values()))
+    for attempt in range(tries):
+        try:
+            daily = risk_model.fetch_daily_weather(list(points.values()))
+            break
+        except requests.RequestException:
+            if attempt == tries - 1:
+                raise
+            time.sleep(20 * (attempt + 1))
     risks, dates = {site: [] for site in points}, []
     for days_ahead in range(1 + risk_model.OUTLOOK_DAYS):
         for site, pt in points.items():
@@ -218,13 +275,14 @@ def confirmation_email(beach_names, level, confirm_url, unsubscribe_url):
     text = (f"Click to start alerts for {beach_name} ({LEVELS[level]}):\n{confirm_url}\n\n"
             "If you didn't sign up, ignore this email and nothing will be sent.\n"
             f"Remove my email: {unsubscribe_url}")
+    href = escape(confirm_url)  # the link has an "&" in it, which HTML wants written as "&amp;"
     html = f"""<div style="font-family: Arial, sans-serif; font-size: 15px; line-height: 1.55; color: #0b1d26;">
 <p>Click to start email alerts for <b>{beach_name}</b> when its risk is {LEVELS[level]}:</p>
 <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td style="border-radius: 999px; background: #d2562e;">
-<a href="{confirm_url}" target="_blank" style="display: inline-block; padding: 12px 22px; border-radius: 999px; background: #d2562e; color: #ffffff; text-decoration: none; font-weight: bold;">Confirm alerts</a>
+<a href="{href}" target="_blank" style="display: inline-block; padding: 12px 22px; border-radius: 999px; background: #d2562e; color: #ffffff; text-decoration: none; font-weight: bold;">Confirm alerts</a>
 </td></tr></table>
 <p style="color: #555; font-size: 13px;">Button not working? Copy this link into your browser:<br>
-<a href="{confirm_url}" style="color: #a9411f; word-break: break-all;">{confirm_url}</a></p>
+<a href="{href}" style="color: #a9411f; word-break: break-all;">{href}</a></p>
 <p style="color: #555; font-size: 13px;">If you didn't sign up, ignore this email and nothing will be sent.
 Questions or ideas to make Kai Check better? Just reply to this email.<br><a href="{unsubscribe_url}">Remove my email from the list</a></p></div>"""
     return subject, text, html
@@ -298,15 +356,18 @@ def link(app_url, **params):
 # --------------------------------------------------------------------------- the daily job
 def run_daily(settings, store, model, beaches, send=send_email, risks=None, dates=None, log=print):
     """Score every beach and email the subscribers whose beach crossed their level today.
-    `send`, `risks` and `dates` can be replaced for a dry run or a test."""
+    `send`, `risks` and `dates` can be replaced for a dry run or a test. An email that fails is
+    logged and skipped, so the rest still go out; the job then ends with an error."""
     if risks is None:
         risks, dates = forecast_risks(model, beaches)
     names = {str(b["site_id"]): b["beach_name"] for b in beaches}
     app_url = base_url(settings["APP_URL"])
     today = {site: day_risks[0] for site, day_risks in risks.items()}
-    sent = 0
+    sent = failed = 0
     for sub in store.confirmed():
         site, level = str(sub["site_id"]), float(sub["level"])
+        if site not in today:  # a beach we stopped tracking: nothing to say about it
+            continue
         action = decide(sub["alerted"], today[site], level)
         if action is None:
             continue
@@ -319,9 +380,16 @@ def run_daily(settings, store, model, beaches, send=send_email, risks=None, date
                                 app_url, unsubscribe_url, manage_url)
         else:
             email = clear_email(names[site], today[site], level, app_url, unsubscribe_url, manage_url)
-        send(settings, sub["email"], *email)
-        store.set_alerted(sub["token"], action == "risky")
+        try:
+            send(settings, sub["email"], *email)
+            store.set_alerted(sub["token"], action == "risky")
+        except Exception as err:  # one bad address must not stop the emails for everyone after it
+            failed += 1
+            log(f"FAILED {action:5s} -> {names[site]}: {type(err).__name__}")  # no address: this log can be public
+            continue
         sent += 1
         log(f"{action:5s} -> {names[site]} ({today[site]:.0%}, level {level:.0%})")
     log(f"{sent} email(s) sent")
+    if failed:  # the job ends red, so GitHub tells the repo owner the same day
+        raise RuntimeError(f"{failed} email(s) could not be sent (see the FAILED lines above)")
     return sent

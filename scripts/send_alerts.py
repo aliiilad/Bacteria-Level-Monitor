@@ -11,6 +11,7 @@ beach crossed their level since yesterday (see ui/alerts.py for the rules).
 """
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -40,7 +41,11 @@ class DemoStore:
 
 
 def print_email(settings, to, subject, text, html):
-    print(f"\n----- to {to}\nSubject: {subject}\n\n{text}\n-----")
+    """Print an email instead of sending it. The address and the link tokens are hidden: this
+    repo is public, so anyone can read the job's log, and a token is all a link needs to work."""
+    name, _, domain = to.partition("@")
+    text = re.sub(r"\b(confirm|manage|unsubscribe|stop)=[\w-]+", r"\1=(hidden)", text)
+    print(f"\n----- to {name[:1]}***@{domain}\nSubject: {subject}\n\n{text}\n-----")
 
 
 def main():
