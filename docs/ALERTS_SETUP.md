@@ -45,12 +45,35 @@ the five names above with the same values.
 ## 5. Test it
 1. On the live site, sign up for a beach with your own email. Confirm from the email (check spam).
 2. GitHub → **Actions → Daily beach alerts → Run workflow**, keep "dry run" ticked: the log prints
-   the emails it *would* send, and nothing is sent or changed.
+   the emails it *would* send, and nothing is sent or changed. Addresses and link tokens are
+   hidden in that log, because the repo is public and anyone can read it.
 3. Run it again with "dry run" unticked to send for real. After that it runs by itself every
    morning at about 5:30am Hawaiʻi time. Scheduled runs only start once this file is on `main`.
 
+## If it stops working
+Start with the two logs. They say what failed in plain words, and never show a subscriber's email.
+- **The site:** share.streamlit.io → the app's **⋮ → Manage app** opens its log.
+- **The daily job:** GitHub → **Actions → Daily beach alerts** → the latest run. A red run means
+  it failed, and GitHub emails the repo owner.
+
+| What you see | Why | Fix |
+|---|---|---|
+| The alerts section says "Sign-ups are paused"; email links say "something went wrong". The log says the Supabase project is paused. | Free Supabase projects pause after about a week with no activity. Nothing in the code can wake a paused project. | supabase.com → your project → **Restore project**. The form comes back by itself within 2 minutes. |
+| The daily job is red: "these GitHub secrets are missing". | Step 4 isn't done, or the five were added somewhere else (as *Variables*, or as *Environment*, *Codespaces* or *Dependabot* secrets). | Add them as **Repository secrets** under Settings → Secrets and variables → **Actions**. |
+| The log says `Supabase answered 401`. | The key is wrong: it must be the **service_role** key, not the anon one. | Copy it again into the Streamlit and GitHub secrets. |
+| The log says `Supabase answered 404`. | The `subscribers` table doesn't exist in this project. | Run `scripts/alerts_schema.sql` again (step 2). |
+| "We saved your sign-up but couldn't send the confirmation email." | Gmail refused the login. | Make a new app password (step 1) and put it in both sets of secrets. |
+| The site shows "Zzzz, this app has gone to sleep". | Streamlit puts apps to sleep when nobody visits for a while. | Click **Yes, get this app back up!** and wait about a minute. |
+
+**What keeps the database awake:** the daily job reads the table every morning, and the site checks
+it when people visit. So once step 4 is done, the project shouldn't pause again. GitHub turns
+scheduled jobs off after 60 days with no commits to the repo, and emails you first: click
+**Enable workflow** on the Actions tab to turn it back on.
+
 ## Rules the code follows
 - Emails go only to confirmed addresses, and every email has an unsubscribe link.
+- Signing up again with an email that is already confirmed changes nothing until the new confirm
+  link is clicked: its alerts stay on and the links in its older emails keep working.
 - One email the morning a beach crosses your level, one when it drops back under. No repeats.
 - Only the email, beach, level, and a random link token are stored. Unsubscribing deletes the row.
 - Wording is always "forecast", never "the water is unsafe", and says it's not an official advisory.

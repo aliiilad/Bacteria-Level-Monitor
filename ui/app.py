@@ -57,7 +57,7 @@ def load_model():
     return risk_model.load_model()
 
 
-@st.cache_data(ttl=3600, show_spinner="Getting today's weather…")
+@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_live_features(site_points):
     """[(date, {site_id: features}), ...] from the forecast for today and the next 3 days,
     today first. Errors are not cached, so a failed fetch is retried on the next rerun."""
@@ -68,6 +68,18 @@ def fetch_live_features(site_points):
         day = next(iter(cut.values()))["time"][-1]
         days.append((day, {site: risk_model.features_from_daily(cut[pt]) for site, pt in site_points}))
     return days
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def live_forecast(site_points):
+    """fetch_live_features, or None when the weather service fails (network down, too many
+    requests, missing values). A failure is kept for 2 minutes: without that, every click would
+    ask again and wait up to 10 seconds before anything is drawn."""
+    try:
+        return fetch_live_features(site_points)
+    except Exception as err:
+        print(f"Live weather unavailable: {type(err).__name__}: {str(err)[:150]}")
+        return None
 
 
 def band(p):
@@ -91,9 +103,21 @@ def alert_settings():
 @st.cache_data(ttl=6 * 3600, show_spinner=False)
 def keep_database_awake(url, key):
     """Touch the alerts database at most every 6 hours while people visit, so the free Supabase
-    project never reaches its week of inactivity and pauses. A failure raises, so it isn't cached
-    and the next visit tries again."""
+    project never reaches its week of inactivity and pauses. A failure raises, so it isn't cached."""
     alerts.SupabaseStore({"SUPABASE_URL": url, "SUPABASE_SERVICE_KEY": key}).ping()
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def database_is_up(url, key):
+    """False when the alerts database just failed its check (for example, the project is paused).
+    The answer is kept for 2 minutes, so a database that is down is tried once every 2 minutes,
+    not on every click, and the reason goes to the app's logs."""
+    try:
+        keep_database_awake(url, key)
+        return True
+    except Exception as err:
+        print(f"Alerts database check failed: {err}")
+        return False
 
 
 def pick_beach(name):
@@ -211,17 +235,8 @@ def html(markup):
 
 beaches = load_beaches()
 model = load_model()
-site_points = tuple((str(s), tuple(model["weather_points"][str(s)])) for s in beaches.site_id)
-try:
-    forecast = fetch_live_features(site_points)
-    forecast_date, live = forecast[0]  # today: the gauge, map, and "why" bars use this day
-except Exception:  # network down, API change, missing values: fall back to a typical day
-    forecast, forecast_date, live = None, None, None
 test = model["test"]
-# Today's risk at every beach, worked out once: the map and the safer-beach pick both use it.
-typical = risk_model.typical_features(model)
-today_risks = {str(s): risk_model.predict(model, s, live[str(s)] if live else typical)[0]
-               for s in beaches.site_id}
+
 
 @st.dialog("Email alerts")
 def link_result(icon, title, body):
@@ -230,15 +245,8 @@ def link_result(icon, title, body):
         <div class="sent-head">{title}</div><p>{body}</p></div>""")
 
 
-_settings = alert_settings()
-if not alerts.missing_settings(_settings):
-    try:
-        keep_database_awake(_settings["SUPABASE_URL"], _settings["SUPABASE_SERVICE_KEY"])
-    except Exception:
-        traceback.print_exc()  # the page still works; sign-up shows its own message if the database is down
-
 # Email links (each carries a subscription's random token):
-#   ?confirm=   turns alerts on for every beach that email signed up for
+#   ?confirm=   turns alerts on for every beach that email signed up for (&level= is the level picked)
 #   ?manage=    opens "Your beach alerts" to change beaches or level, or stop everything
 #   ?unsubscribe=  stops one beach      ?stop=  stops every beach for that email
 beach_names = {str(b.site_id): b.beach_name for b in beaches.itertuples()}
@@ -252,6 +260,7 @@ def manage_alerts(token, settings):
     try:
         rows = store.subscriptions(token)
     except Exception:
+        traceback.print_exc()
         st.error("Sorry, we couldn't load your alerts right now. Please try again later.")
         return
     if not rows:
@@ -281,53 +290,9 @@ def manage_alerts(token, settings):
             st.query_params.clear()
             st.rerun()
     except Exception:
+        traceback.print_exc()
         st.error("Sorry, something went wrong. Please try again later.")
 
-
-if "alert_flash" in st.session_state:  # result of the manage pop-up, shown after it closes
-    link_result(*st.session_state.pop("alert_flash"))
-for action in ("confirm", "manage", "unsubscribe", "stop"):
-    token = st.query_params.get(action)
-    if not token:
-        continue
-    settings = alert_settings()
-    if alerts.missing_settings(settings):
-        st.warning("Email alerts aren't set up yet, so this link can't be used right now.")
-        break
-    if action == "manage":
-        manage_alerts(token, settings)
-        break
-    try:
-        store = alerts.SupabaseStore(settings)
-        found = (store.confirm(token) if action == "confirm" else
-                 store.unsubscribe(token, everything=action == "stop"))
-    except Exception:
-        st.error("Sorry, something went wrong with that link. Please try again later.")
-        break
-    st.query_params.clear()  # so a refresh doesn't use the link again
-    names = alerts.beach_list([beach_names.get(str(r["site_id"]), "your beach") for r in found]) if found else ""
-    if not found:
-        link_result("info", "This link was already used",
-                    "It may have expired, or you already clicked it. Sign up again in the alerts section if you need to.")
-    elif action == "confirm":
-        try:  # a welcome email, so there's a record of what they signed up for and how to change it
-            alerts.send_email(settings, found[0]["email"], *alerts.welcome_email(
-                [beach_names.get(str(r["site_id"]), "your beach") for r in found], float(found[0]["level"]),
-                alerts.base_url(settings["APP_URL"]), alerts.link(settings["APP_URL"], manage=token),
-                alerts.link(settings["APP_URL"], stop=token)))
-        except Exception:
-            pass  # they're confirmed either way
-        link_result("ok", "You're signed up!",
-                    f"You'll get an email the morning <b>{names}</b> turns risky, and one more when it's back "
-                    "to lower risk. Every email has links to change your beaches or unsubscribe. We just sent "
-                    "you a welcome email too.")
-    elif action == "stop":
-        link_result("ok", "You're unsubscribed",
-                    "You won't get any more alerts, and we deleted your email from our list.")
-    else:
-        link_result("ok", "You're unsubscribed",
-                    f"You won't get any more alerts for <b>{names}</b>. Your other beaches, if any, stay on.")
-    break
 
 # ------------------------------------------------------------------ Hero
 html(
@@ -356,6 +321,72 @@ with st.container(key="sec-pick"):
         including Brown Water Advisories after heavy rain,
         and follow any posted signs.</div>
         <a class="official-btn" href="{DOH_URL}" target="_blank" rel="noopener">Official DOH advisories &rarr;</a></div>""")
+
+# ------------------------------------------------------------------ Slow steps: email links and today's weather
+# Anything that waits on another service happens here, after the photo and the picker are on
+# screen, so the page never sits blank while it waits. Spinners and link messages show in this
+# spot, under the picker.
+with st.container(key="sec-wait"):
+    if "alert_flash" in st.session_state:  # result of the manage pop-up, shown after it closes
+        link_result(*st.session_state.pop("alert_flash"))
+    for action in ("confirm", "manage", "unsubscribe", "stop"):
+        token = st.query_params.get(action)
+        if not token:
+            continue
+        settings = alert_settings()
+        if alerts.missing_settings(settings):
+            st.warning("Email alerts aren't set up yet, so this link can't be used right now.")
+            break
+        if action == "manage":
+            manage_alerts(token, settings)
+            break
+        link_failed = "Sorry, something went wrong with that link. Please try again later."
+        if st.session_state.get("link_failed") == token:  # it failed a moment ago: don't try again on every click
+            st.error(link_failed)
+            break
+        try:
+            with st.spinner("Opening your link…"):
+                store = alerts.SupabaseStore(settings)
+                found = (store.confirm(token, alerts.level_from_link(st.query_params.get("level")))
+                         if action == "confirm" else store.unsubscribe(token, everything=action == "stop"))
+        except Exception:
+            traceback.print_exc()  # the real reason goes to the app's logs
+            st.session_state["link_failed"] = token
+            st.error(link_failed)
+            break
+        st.query_params.clear()  # so a refresh doesn't use the link again
+        names = alerts.beach_list([beach_names.get(str(r["site_id"]), "your beach") for r in found]) if found else ""
+        if not found:
+            link_result("info", "This link was already used",
+                        "It may have expired, or you already clicked it. Sign up again in the alerts section if you need to.")
+        elif action == "confirm":
+            try:  # a welcome email, so there's a record of what they signed up for and how to change it
+                alerts.send_email(settings, found[0]["email"], *alerts.welcome_email(
+                    [beach_names.get(str(r["site_id"]), "your beach") for r in found], float(found[0]["level"]),
+                    alerts.base_url(settings["APP_URL"]), alerts.link(settings["APP_URL"], manage=token),
+                    alerts.link(settings["APP_URL"], stop=token)))
+            except Exception:
+                pass  # they're confirmed either way
+            link_result("ok", "You're signed up!",
+                        f"You'll get an email the morning <b>{names}</b> turns risky, and one more when it's back "
+                        "to lower risk. Every email has links to change your beaches or unsubscribe. We just sent "
+                        "you a welcome email too.")
+        elif action == "stop":
+            link_result("ok", "You're unsubscribed",
+                        "You won't get any more alerts, and we deleted your email from our list.")
+        else:
+            link_result("ok", "You're unsubscribed",
+                        f"You won't get any more alerts for <b>{names}</b>. Your other beaches, if any, stay on.")
+        break
+
+    site_points = tuple((str(s), tuple(model["weather_points"][str(s)])) for s in beaches.site_id)
+    with st.spinner("Getting today's weather…"):
+        forecast = live_forecast(site_points)  # None when live weather is unavailable: fall back to a typical day
+forecast_date, live = forecast[0] if forecast else (None, None)  # today: the gauge, map, and "why" bars use this day
+# Today's risk at every beach, worked out once: the map and the safer-beach pick both use it.
+typical = risk_model.typical_features(model)
+today_risks = {str(s): risk_model.predict(model, s, live[str(s)] if live else typical)[0]
+               for s in beaches.site_id}
 
 # ------------------------------------------------------------------ 01 · Today's forecast
 with st.container(key="sec-check"):
@@ -543,6 +574,12 @@ with st.container(key="sec-alerts"):
                 don't work in spam). Adding {CONTACT_EMAIL} to your contacts keeps later alerts in your inbox.</p></div>""")
             st.button("Sign up another email", key="alert-again", width="stretch",
                       on_click=lambda: st.session_state.pop("alert_sent", None))
+        elif not database_is_up(settings["SUPABASE_URL"], settings["SUPABASE_SERVICE_KEY"]):
+            # Don't offer a form that can't save. This check also keeps the database awake.
+            html(f"""<div class="soon"><div class="soon-head">Sign-ups are paused</div>
+                <p>We can't save new sign-ups right now, and we're working on it. Please try again
+                later, or email <a href="mailto:{CONTACT_EMAIL}">{CONTACT_EMAIL}</a>. Until then, check
+                this page and the official DOH advisories before you swim.</p></div>""")
         else:
             with st.form("alert-form"):
                 email = st.text_input("Email", placeholder="you@example.com")
@@ -568,7 +605,7 @@ with st.container(key="sec-alerts"):
                                 email.strip().lower(), [beach_ids[t] for t in tracks], level)
                             step = "email"
                             alerts.send_email(settings, email.strip(), *alerts.confirmation_email(
-                                tracks, level, alerts.link(settings["APP_URL"], confirm=token),
+                                tracks, level, alerts.link(settings["APP_URL"], confirm=token, level=level),
                                 alerts.link(settings["APP_URL"], stop=token)))
                     except Exception:
                         traceback.print_exc()
