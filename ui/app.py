@@ -11,8 +11,9 @@ Run:  streamlit run ui/app.py
 import base64
 import importlib
 import traceback
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import pydeck as pdk
@@ -76,10 +77,23 @@ def live_forecast(site_points):
     requests, missing values). A failure is kept for 2 minutes: without that, every click would
     ask again and wait up to 10 seconds before anything is drawn."""
     try:
-        return fetch_live_features(site_points)
+        forecast = fetch_live_features(site_points)
+        last_good_forecast()[site_points] = forecast
+        return forecast
     except Exception as err:
         print(f"Live weather unavailable: {type(err).__name__}: {str(err)[:150]}")
-        return None
+    # Keep showing the last forecast that loaded, as long as it is still today's in Hawaiʻi.
+    saved = last_good_forecast().get(site_points)
+    if saved and saved[0][0] == datetime.now(ZoneInfo("Pacific/Honolulu")).date().isoformat():
+        return saved
+    return None
+
+
+@st.cache_resource
+def last_good_forecast():
+    """The latest forecast that loaded, shared by every visitor: if the weather service has a bad
+    moment, the page keeps today's forecast instead of dropping to a typical day."""
+    return {}
 
 
 def band(p):

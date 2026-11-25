@@ -12,6 +12,7 @@ Weather features are computed exactly like scripts/build_dataset.py does for tra
 """
 import json
 import math
+import time
 from pathlib import Path
 
 import requests
@@ -28,19 +29,27 @@ def load_model(path=MODEL_PATH):
     return json.loads(Path(path).read_text())
 
 
-def fetch_daily_weather(points):
+def fetch_daily_weather(points, tries=3):
     """Fetch the last 30 days, today, and the next 3 days for each (lat, lon) in one Open-Meteo
     request. Returns {(lat, lon): daily dict}, where each daily list ends 3 days after today
     (Honolulu time). Use daily_until to cut a list off at today or a later day."""
     points = sorted(set(points))
-    resp = requests.get(FORECAST_URL, timeout=10, params={
+    params = {
         "latitude": ",".join(str(lat) for lat, _ in points),
         "longitude": ",".join(str(lon) for _, lon in points),
         "daily": ",".join(DAILY_VARS),
         "timezone": "Pacific/Honolulu",
         "past_days": 30,
         "forecast_days": 1 + OUTLOOK_DAYS,  # today + the next 3 days
-    })
+    }
+    # Open-Meteo sometimes answers "too many requests" (429) or has a brief outage (5xx), so try
+    # a few times with a short wait before giving up.
+    for attempt in range(tries):
+        resp = requests.get(FORECAST_URL, timeout=10, params=params)
+        if resp.status_code != 429 and resp.status_code < 500:
+            break
+        if attempt < tries - 1:
+            time.sleep(2 ** attempt)  # 1 s, then 2 s
     resp.raise_for_status()
     data = resp.json()
     if isinstance(data, dict):  # one location comes back as an object, several as a list
